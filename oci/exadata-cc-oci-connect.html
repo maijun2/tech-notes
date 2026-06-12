@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exadata Cloud@Customer がオンプレミスにあるのに VCN と接続できる理由 | maijun の技術質問ノート</title>
+  <meta name="description" content="Exadata C@C はコントロールプレーン（CPS による自動化トンネル）とデータプレーン（VCN サブネット上の VNIC）の 2 系統でOCI と結びついている。SQL・データはオンプレミスを出ない。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time datetime="2026-06-12">2026-06-12</time>
+      </p>
+      <h1>Exadata Cloud@Customer がオンプレミスにあるのに VCN と接続できる理由</h1>
+
+      <div class="lead">
+        <p>
+          Exadata Cloud@Customer (ExaC@C) は物理ハードウェアが顧客データセンターに置かれていますが、
+          OCI との接続は <strong>コントロールプレーン</strong> と <strong>データプレーン</strong> の 2 系統で実現されています。
+          コントロールプレーンはラック内の 2 台の Control Plane Server (CPS) が OCI リージョンへの
+          アウトバウンド HTTPS トンネルを張ることで、OCI コンソール・API からのプロビジョニングや
+          監視を可能にします。データプレーンは顧客が OCI 上に作成した VCN の
+          クライアントサブネット・バックアップサブネットに DB VM の VNIC が論理的に属することで、
+          OCI のネットワーク機能（セキュリティリスト・NSG・ルート表など）が適用されます。
+          <strong>SQL やデータそのものはオンプレミスを出ず、WAN を経由しません。</strong>
+        </p>
+      </div>
+
+      <!-- ======== アーキテクチャ概要 SVG ======== -->
+      <svg viewBox="0 0 780 340" xmlns="http://www.w3.org/2000/svg"
+           style="width:100%;max-width:780px;display:block;margin:1.5rem auto;font-family:sans-serif;font-size:12px;">
+
+        <!-- 顧客データセンター -->
+        <rect x="10" y="10" width="360" height="310" rx="8" fill="#f0f4ff" stroke="#6680cc" stroke-width="1.5"/>
+        <text x="24" y="30" fill="#334" font-weight="bold">顧客データセンター（オンプレミス）</text>
+
+        <!-- Exadata Rack -->
+        <rect x="30" y="45" width="200" height="240" rx="6" fill="#dce4ff" stroke="#445" stroke-width="1"/>
+        <text x="42" y="65" fill="#223" font-weight="bold">Exadata ラック</text>
+
+        <!-- CPS -->
+        <rect x="50" y="75" width="160" height="40" rx="4" fill="#b0c0ff" stroke="#445"/>
+        <text x="130" y="90" text-anchor="middle" fill="#112">Control Plane</text>
+        <text x="130" y="104" text-anchor="middle" fill="#112">Servers (CPS) ×2</text>
+
+        <!-- DB VM -->
+        <rect x="50" y="130" width="160" height="50" rx="4" fill="#c8e6c9" stroke="#445"/>
+        <text x="130" y="150" text-anchor="middle" fill="#112">DB VM (VM Cluster)</text>
+        <text x="130" y="164" text-anchor="middle" fill="#334" font-size="10">bondeth0 / bondeth1</text>
+
+        <!-- Storage Servers -->
+        <rect x="50" y="195" width="160" height="35" rx="4" fill="#ffe082" stroke="#445"/>
+        <text x="130" y="218" text-anchor="middle" fill="#112">Exadata Storage Servers</text>
+
+        <!-- on-prem switch -->
+        <rect x="260" y="130" width="90" height="50" rx="4" fill="#e0e0e0" stroke="#888"/>
+        <text x="305" y="152" text-anchor="middle" fill="#334">顧客</text>
+        <text x="305" y="167" text-anchor="middle" fill="#334">スイッチ</text>
+
+        <!-- DB VM → switch -->
+        <line x1="210" y1="155" x2="260" y2="155" stroke="#444" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- Application servers on-prem -->
+        <rect x="260" y="200" width="90" height="40" rx="4" fill="#e0e0e0" stroke="#888"/>
+        <text x="305" y="225" text-anchor="middle" fill="#334">AP サーバー</text>
+
+        <!-- OCI リージョン -->
+        <rect x="400" y="10" width="370" height="310" rx="8" fill="#fff3e0" stroke="#e67e22" stroke-width="1.5"/>
+        <text x="415" y="30" fill="#7a3000" font-weight="bold">OCI リージョン</text>
+
+        <!-- Admin VCN (Oracle managed) -->
+        <rect x="420" y="45" width="160" height="80" rx="6" fill="#ffe0b2" stroke="#e67e22"/>
+        <text x="500" y="65" text-anchor="middle" fill="#7a3000" font-size="11">Oracle 管理 Admin VCN</text>
+        <text x="500" y="82" text-anchor="middle" fill="#7a3000" font-size="10">（コントロールプレーン受信）</text>
+        <text x="500" y="97" text-anchor="middle" fill="#7a3000" font-size="10">CPS からの自動化命令を処理</text>
+
+        <!-- Customer VCN -->
+        <rect x="420" y="145" width="330" height="155" rx="6" fill="#e8f5e9" stroke="#388e3c"/>
+        <text x="585" y="165" text-anchor="middle" fill="#1b5e20" font-weight="bold">顧客作成 VCN</text>
+
+        <!-- Client subnet -->
+        <rect x="440" y="175" width="130" height="50" rx="4" fill="#c8e6c9" stroke="#388e3c"/>
+        <text x="505" y="195" text-anchor="middle" fill="#1b5e20" font-size="11">クライアントサブネット</text>
+        <text x="505" y="210" text-anchor="middle" fill="#1b5e20" font-size="10">（DB VM VNIC が属する）</text>
+
+        <!-- Backup subnet -->
+        <rect x="440" y="235" width="130" height="50" rx="4" fill="#dcedc8" stroke="#388e3c"/>
+        <text x="505" y="255" text-anchor="middle" fill="#1b5e20" font-size="11">バックアップサブネット</text>
+        <text x="505" y="270" text-anchor="middle" fill="#1b5e20" font-size="10">（バックアップ VNIC が属する）</text>
+
+        <!-- Service GW / DRG -->
+        <rect x="590" y="175" width="140" height="110" rx="4" fill="#fff9c4" stroke="#f9a825"/>
+        <text x="660" y="195" text-anchor="middle" fill="#5d4037" font-size="11">Service Gateway</text>
+        <text x="660" y="210" text-anchor="middle" fill="#5d4037" font-size="10">→ OCI Object Storage 等</text>
+        <line x1="590" y1="225" x2="590" y2="240" stroke="#888" stroke-width="1" stroke-dasharray="3,2"/>
+        <text x="660" y="245" text-anchor="middle" fill="#5d4037" font-size="11">DRG</text>
+        <text x="660" y="260" text-anchor="middle" fill="#5d4037" font-size="10">→ FastConnect / VPN</text>
+        <text x="660" y="275" text-anchor="middle" fill="#5d4037" font-size="10">   他 OCI リソースへ</text>
+
+        <!-- OCI Console / API -->
+        <rect x="420" y="45" width="0" height="0"/><!-- placeholder -->
+
+        <!-- 矢印定義 -->
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#444"/>
+          </marker>
+          <marker id="arr-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#e67e22"/>
+          </marker>
+          <marker id="arr-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#388e3c"/>
+          </marker>
+        </defs>
+
+        <!-- CPS → Admin VCN (自動化トンネル) -->
+        <path d="M210,95 Q310,95 420,85" fill="none" stroke="#e67e22" stroke-width="2"
+              stroke-dasharray="6,3" marker-end="url(#arr-orange)"/>
+        <text x="310" y="82" text-anchor="middle" fill="#c0392b" font-size="10">HTTPS 自動化トンネル</text>
+        <text x="310" y="93" text-anchor="middle" fill="#c0392b" font-size="10">（コントロールプレーン）</text>
+
+        <!-- DB VM VNIC → Client Subnet (論理) -->
+        <path d="M210,155 Q340,155 440,200" fill="none" stroke="#388e3c" stroke-width="2"
+              stroke-dasharray="5,3" marker-end="url(#arr-green)"/>
+        <text x="340" y="172" text-anchor="middle" fill="#1b5e20" font-size="10">VNIC 論理登録</text>
+        <text x="340" y="183" text-anchor="middle" fill="#1b5e20" font-size="10">（データはオンプレのまま）</text>
+      </svg>
+
+      <h2>2 系統の接続：コントロールプレーンとデータプレーン</h2>
+      <p>
+        ExaC@C の OCI 接続は目的の異なる 2 系統から成ります。
+      </p>
+
+      <h3>① コントロールプレーン（管理・自動化）</h3>
+      <p>
+        各 Exadata ラックには <strong>Control Plane Server (CPS) が 2 台</strong>同梱されています。
+        CPS はラック内のすべての DB サーバー・ストレージサーバーと管理ネットワーク（Administration Network）で接続されており、
+        OCI リージョンにある <strong>Oracle 管理の Admin VCN</strong> へ向けて
+        <strong>アウトバウンド HTTPS の永続的な自動化トンネル</strong>を張ります。
+        このトンネルを通じて OCI コンソール・API からの操作（VM クラスター作成、パッチ適用、スケーリング等）が
+        CPS を経由してラック内ハードウェアに届きます。
+        また、OCI 監視・ログ・テレメトリのデータも同じ経路で OCI リージョンへ送られます。
+      </p>
+      <p>
+        顧客が用意するのは <strong>TCP 443 のアウトバウンド通信</strong>（特定の OCI エンドポイント 5 つへ）のみで、
+        インバウンドのポート開放は不要です。
+      </p>
+
+      <h3>② データプレーン（データベースアクセス・バックアップ）</h3>
+      <p>
+        顧客は OCI 上に <strong>VCN（Virtual Cloud Network）</strong> を作成し、
+        最低 2 つのプライベートサブネットを用意します。
+      </p>
+      <ul>
+        <li><strong>クライアントサブネット</strong>：アプリケーションや DBA が DB に接続するための経路。DB VM の <code>bondeth0</code> インタフェースがこのサブネットに属します。</li>
+        <li><strong>バックアップサブネット</strong>：RMAN バックアップや Autonomous Recovery Service への転送専用。DB VM の <code>bondeth1</code> インタフェースが属します。クライアントトラフィックと分離することで帯域競合を防ぎます。</li>
+      </ul>
+      <p>
+        DB VM の VNIC は OCI のコントロールプレーン（CPS トンネル経由）によって各サブネットに
+        <strong>論理的に登録</strong>されます。つまり、IP アドレスは VCN サブネットの CIDR から払い出され、
+        OCI の Security List・Network Security Group・Route Table がそのまま適用されます。
+        ただし、実際のデータパケットは <strong>顧客の物理ネットワーク上を流れるだけで OCI リージョンには届きません</strong>。
+      </p>
+
+      <h2>オンプレミスの物理ネットワーク構成</h2>
+      <p>
+        ラック内の DB VM は以下の複数のネットワークを持ちます。
+        これらは VLAN とポリシーベースルーティングで厳密に分離されています。
+      </p>
+
+      <table style="border-collapse:collapse;width:100%;font-size:0.9rem;">
+        <thead>
+          <tr style="background:#e8eaf6;">
+            <th style="border:1px solid #bbb;padding:6px 10px;text-align:left;">ネットワーク</th>
+            <th style="border:1px solid #bbb;padding:6px 10px;text-align:left;">インタフェース</th>
+            <th style="border:1px solid #bbb;padding:6px 10px;text-align:left;">用途</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #bbb;padding:6px 10px;">クライアントネットワーク</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;"><code>bondeth0</code></td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">アプリ・DBA から DB への接続（VCN クライアントサブネット）</td>
+          </tr>
+          <tr style="background:#f9f9f9;">
+            <td style="border:1px solid #bbb;padding:6px 10px;">バックアップネットワーク</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;"><code>bondeth1</code></td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">RMAN バックアップ・リカバリ（VCN バックアップサブネット）</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bbb;padding:6px 10px;">管理ネットワーク（Admin Network）</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">—</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">CPS とハードウェア間の管理通信。顧客クライアントからは見えない</td>
+          </tr>
+          <tr style="background:#f9f9f9;">
+            <td style="border:1px solid #bbb;padding:6px 10px;">InfiniBand ネットワーク</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">—</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">DB サーバー〜ストレージサーバー間の高速 I/O（Oracle 管理）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>OCI サービスへのアクセス方法</h2>
+
+      <h3>Object Storage・バックアップなど OCI サービスへ</h3>
+      <p>
+        VCN に <strong>Service Gateway</strong> をアタッチすることで、
+        バックアップサブネットから OCI Object Storage や Autonomous Recovery Service へ
+        インターネットを経由せずアクセスできます。
+        Service Gateway は VCN 内のルート表に <code>0.0.0.0/0 → Service Gateway</code> のルートを
+        追加するだけで使えます。
+      </p>
+
+      <h3>他の OCI コンピュートリソースから Exadata DB へ</h3>
+      <p>
+        DB VM の IP は VCN クライアントサブネット上に存在するため、
+        <strong>同じ VCN 内の OCI Compute インスタンス</strong>からは通常の VCN ルーティングで接続できます。
+        オンプレミスのアプリや他のネットワークからは、
+        <strong>FastConnect</strong> または <strong>Site-to-Site VPN</strong> を
+        Dynamic Routing Gateway (DRG) 経由で VCN に接続することでアクセス可能です。
+      </p>
+
+      <pre><code># Service Gateway 向けルートの例（oci CLI）
+oci network route-table update \
+  --rt-id ocid1.routetable.oc1..example \
+  --route-rules '[
+    {
+      "destination": "all-iad-services-in-oracle-services-network",
+      "destinationType": "SERVICE_CIDR_BLOCK",
+      "networkEntityId": "ocid1.servicegateway.oc1..example"
+    }
+  ]'</code></pre>
+
+      <h2>まとめ：データ主権とクラウド運用を両立する仕組み</h2>
+      <p>
+        ExaC@C は「<strong>管理は OCI、データはオンプレミス</strong>」という分離によって
+        データ主権規制への対応とクラウドネイティブな運用体験を両立しています。
+        CPS の自動化トンネルはコントロールプレーン専用で、SQL クエリの結果やバックアップデータは
+        WAN を経由しません。VCN サブネットへの論理登録により、
+        OCI のセキュリティ機能やネットワーク機能がオンプレミスの DB VM に適用される点が
+        他のオンプレミスソリューションとの大きな違いです。
+      </p>
+
+      <section class="refs">
+        <h2>参照（一次情報）</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/en/engineered-systems/exadata-cloud-at-customer/eccid/exacc_network.html" rel="noopener">Oracle Docs — Exadata Cloud@Customer Network（公式）</a></li>
+          <li><a href="https://docs.oracle.com/en/engineered-systems/exadata-cloud-at-customer/eccid/exacc_netinterfaces.html" rel="noopener">Oracle Docs — Exadata Cloud@Customer Network Interfaces（公式）</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/exadata/doc/ecc-network-requirements.html" rel="noopener">Oracle Docs — Network Requirements for Oracle Exadata Database Service on Cloud@Customer（公式）</a></li>
+          <li><a href="https://docs.oracle.com/en/engineered-systems/exadata-cloud-at-customer/eccid/exacc_overview.html" rel="noopener">Oracle Docs — Exadata Cloud@Customer Technical Architecture（公式）</a></li>
+          <li><a href="https://www.ateam-oracle.com/an-intro-to-oracle-exadata-cloudcustomer-exacc-networking" rel="noopener">Oracle A-Team — An Intro to Oracle Exadata Cloud@Customer (ExaC@C) Networking</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
