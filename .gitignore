@@ -1,0 +1,19 @@
+# 静的サイトに必要なファイル(HTML/CSS/SVG/画像/Markdown)以外は管理しない
+# 設定ファイル・データファイルの誤コミット防止
+*.json
+*.yaml
+*.yml
+*.env
+.env*
+*.log
+*.zip
+*.csv
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node 等(本リポジトリはビルド不要のため不要物)
+node_modules/

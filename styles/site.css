@@ -1,0 +1,357 @@
+/* ==========================================================
+   技術質問ノート 共通スタイル
+   方針: 記事は Claude が自動生成するため、セマンティックな
+   HTML + この CSS 1 枚だけで成立させる。記事側に個別の
+   style を書かないこと。
+   ========================================================== */
+
+:root {
+  --bg: #fbfbf7;
+  --surface: #ffffff;
+  --ink: #1e2a30;
+  --muted: #5d6b70;
+  --line: #d9ded8;
+  --accent: #0e7c7b;       /* サイト全体のアクセント(琉球ガラスの青緑) */
+  --cat-aws: #b3611f;      /* カテゴリ色: AWS */
+  --cat-oci: #a63a2e;      /* カテゴリ色: OCI */
+  --cat-misc: #4a5d8a;     /* カテゴリ色: その他 */
+  --code-bg: #f0f2ee;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14181a;
+    --surface: #1c2225;
+    --ink: #e5e7e2;
+    --muted: #9aa6aa;
+    --line: #39423f;
+    --accent: #4fb8a8;
+    --cat-aws: #d98c4a;
+    --cat-oci: #d4685b;
+    --cat-misc: #8fa3d4;
+    --code-bg: #232b2e;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 16px; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+    "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 20px 64px;
+}
+
+/* ---------- ヘッダー / フッター ---------- */
+
+.site-header {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 20px 8px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.site-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.site-title::before {
+  content: "■ ";
+  color: var(--accent);
+}
+
+.site-header nav a {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.site-header nav a:hover { color: var(--accent); }
+
+.site-footer {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.site-footer a { color: var(--accent); }
+
+/* ---------- トップページ(目次) ---------- */
+
+.hero {
+  margin: 40px 0 8px;
+}
+
+.hero h1 {
+  font-size: 1.7rem;
+  line-height: 1.4;
+  margin: 0 0 12px;
+  letter-spacing: 0.02em;
+}
+
+.hero p {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.notice {
+  margin: 24px 0 40px;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.category {
+  margin: 44px 0 0;
+}
+
+.category > h2 {
+  font-size: 1.1rem;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category > h2::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.cat-mark {
+  display: inline-block;
+  min-width: 3.2em;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 10px;
+  border-radius: 999px;
+  color: var(--bg);
+}
+
+.cat-aws .cat-mark { background: var(--cat-aws); }
+.cat-oci .cat-mark { background: var(--cat-oci); }
+.cat-misc .cat-mark { background: var(--cat-misc); }
+
+ul.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+ul.entries li { margin: 0; }
+
+/* 目次の 1 行: タイトル …… 日付(点線リーダーがこのサイトの個性) */
+a.entry {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 2px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+a.entry:hover .entry-title {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.entry-title { font-size: 0.95rem; }
+
+.leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--line);
+  transform: translateY(-4px);
+  min-width: 24px;
+}
+
+a.entry time {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------- 記事ページ ---------- */
+
+article.note { margin-top: 32px; }
+
+article.note .meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+article.note h1 {
+  font-size: 1.55rem;
+  line-height: 1.45;
+  margin: 0 0 20px;
+  letter-spacing: 0.02em;
+}
+
+/* 結論ブロック: 記事の答えを最初に置く */
+.lead {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 16px 20px;
+  margin: 0 0 32px;
+}
+
+.lead::before {
+  content: "結論";
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+article.note h2 {
+  font-size: 1.15rem;
+  margin: 44px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+article.note h3 {
+  font-size: 1rem;
+  margin: 28px 0 8px;
+}
+
+article.note p { margin: 0 0 16px; }
+
+article.note ul,
+article.note ol { padding-left: 1.4em; margin: 0 0 16px; }
+
+article.note li { margin: 4px 0; }
+
+article.note a { color: var(--accent); }
+
+article.note figure {
+  margin: 24px 0;
+  text-align: center;
+}
+
+article.note figcaption {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+article.note table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 0 0 16px;
+}
+
+article.note th,
+article.note td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+article.note th { background: var(--code-bg); }
+
+/* コード */
+code {
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono",
+    "Source Han Code JP", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  overflow-x: auto;
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+/* 参照(一次情報) */
+section.refs {
+  margin-top: 56px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+section.refs h2 {
+  font-size: 0.9rem;
+  margin: 0 0 10px;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+section.refs ul {
+  margin: 0;
+  padding-left: 1.3em;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 36px;
+  font-size: 0.9rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.back-link:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 1.4rem; }
+  article.note h1 { font-size: 1.3rem; }
+}

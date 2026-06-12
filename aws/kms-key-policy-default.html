@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KMS キーポリシーの「デフォルトキーポリシー」は何を許可しているのか | maijun の技術質問ノート</title>
+  <meta name="description" content="API/CLI で KMS キーを作成した際のデフォルトキーポリシーは、アカウントの root プリンシパルに kms:* を許可し、IAM ポリシーによるアクセス制御を有効化する 1 つのステートメントで構成される。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time datetime="2026-06-13">2026-06-13</time>
+      </p>
+      <h1>KMS キーポリシーの「デフォルトキーポリシー」は何を許可しているのか</h1>
+
+      <div class="lead">
+        <p>API や CLI でキーポリシーを指定せずに KMS キーを作成すると、<strong>アカウントの root プリンシパルに <code>kms:*</code> を許可する 1 つのステートメント</strong>だけを持つデフォルトキーポリシーが設定されます。これは「root が直接使う」ためではなく、<strong>IAM ポリシーでこのキーへのアクセスを制御できるようにする(IAM を有効化する)</strong>ことが目的です。このステートメントを削除すると、IAM ポリシーでは一切アクセスできないキーになります。</p>
+      </div>
+
+      <h2>デフォルトキーポリシーの中身</h2>
+      <p>ステートメントは次の 1 つだけです(Sid は <code>Enable IAM User Permissions</code>)。</p>
+
+      <pre><code>{
+  "Sid": "Enable IAM User Permissions",
+  "Effect": "Allow",
+  "Principal": { "AWS": "arn:aws:iam::123456789012:root" },
+  "Action": "kms:*",
+  "Resource": "*"
+}</code></pre>
+
+      <p>ポイントは <code>Principal</code> が「root ユーザーそのもの」ではなく「アカウント全体」を表す点です。この許可があることで、同一アカウント内の IAM ユーザー・ロールに対して IAM ポリシー側で <code>kms:Decrypt</code> 等を付与すれば、キーポリシーを編集しなくてもアクセスを許可できるようになります。</p>
+
+      <h2>コンソールで作成した場合との違い</h2>
+      <p>マネジメントコンソールのキー作成ウィザードでは、上記に加えて「キー管理者」「キーユーザー」を選択でき、選択内容に応じたステートメントが追加されます。つまりコンソール経由のデフォルトは API/CLI のデフォルトより多くのステートメントを持ちます。研修等で「デフォルトキーポリシー」と言うときは、どちらの文脈かを確認すると齟齬を防げます。</p>
+
+      <h2>確認コマンド</h2>
+      <pre><code>aws kms get-key-policy \
+  --key-id alias/example \
+  --policy-name default \
+  --output text</code></pre>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/kms/latest/developerguide/key-policy-default.html" rel="noopener">AWS KMS Developer Guide — Default key policy</a></li>
+          <li><a href="https://docs.aws.amazon.com/kms/latest/developerguide/key-policies.html" rel="noopener">AWS KMS Developer Guide — Key policies in AWS KMS</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

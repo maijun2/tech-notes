@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- TODO: タイトルを「記事タイトル | maijun の技術質問ノート」にする -->
+  <title>記事タイトル | maijun の技術質問ノート</title>
+  <meta name="description" content="TODO: 結論を 1 文で要約">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <!-- TODO: カテゴリに応じて cat-aws / cat-oci / cat-misc を選ぶ -->
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time datetime="2026-01-01">2026-01-01</time>
+      </p>
+      <h1>質問を一言で表すタイトル</h1>
+
+      <div class="lead">
+        <p>ここに結論を 2〜4 文で書く。読者がこのブロックだけ読めば答えが分かる状態にする。</p>
+      </div>
+
+      <h2>見出し(背景・詳細・根拠など)</h2>
+      <p>本文。です・ます調。技術用語・サービス名は英語表記を維持する。</p>
+
+      <pre><code># コマンドやコードは必ず pre > code で囲む
+aws kms get-key-policy --key-id alias/example --policy-name default</code></pre>
+
+      <h2>見出し 2</h2>
+      <p>必要に応じてインライン SVG の図解を入れる(外部画像生成は使わない)。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/" rel="noopener">TODO: 参照した公式ドキュメントの URL(必須・1 件以上)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
