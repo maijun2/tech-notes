@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lake Formation の新 S3 直接ファイルアクセス — SQL とファイルの権限を統合 | maijun の技術質問ノート</title>
+  <meta name="description" content="従来の Lake Formation は SQL クエリ経由のみ権限制御できたが、2026年6月の新機能でテーブル権限に基づく一時的 S3 認証情報を取得し直接ファイルアクセスが可能になった。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time datetime="2026-06-13">2026-06-13</time>
+      </p>
+      <h1>Lake Formation の新 S3 直接ファイルアクセス — SQL とファイルの権限を統合</h1>
+
+      <div class="lead">
+        <p>
+          従来の Lake Formation は Athena・Redshift Spectrum・Spark SQL などの<strong>統合サービスを介した SQL クエリ</strong>に対してのみテーブル権限を適用していました。
+          アプリケーションコードが S3 ファイルに直接アクセスするには、別途 IAM ポリシーや S3 バケットポリシーが必要でした。
+          2026年6月の新機能では、Lake Formation テーブル権限に基づいて<strong>一時的なスコープ付き S3 認証情報</strong>を取得できるようになり、
+          SQL クエリとファイルレベルアクセスを単一の権限セットで管理できるようになりました。
+        </p>
+      </div>
+
+      <h2>従来の仕組み — 統合サービス経由の SQL アクセス</h2>
+      <p>
+        Lake Formation は元々、Glue データカタログに登録されたテーブルへの<strong>SQL クエリを制御</strong>するサービスとして設計されました。
+        Athena や Spark SQL などの統合サービスがクエリを実行する際に、Lake Formation がユーザーのテーブル権限を確認し、
+        バックエンドの S3 へのアクセスを統合サービスエンジン側に許可する仕組みです。
+      </p>
+
+      <svg viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg" aria-label="従来のアクセスフロー" style="max-width:600px;display:block;margin:1.5rem 0;font-family:sans-serif">
+        <rect x="10"  y="70" width="110" height="50" rx="6" fill="#e8f4fd" stroke="#4a90d9" stroke-width="1.5"/>
+        <text x="65"  y="91"  text-anchor="middle" font-size="11" fill="#1a1a1a">ユーザー</text>
+        <text x="65"  y="107" text-anchor="middle" font-size="11" fill="#1a1a1a">SQL クエリ</text>
+
+        <rect x="165" y="30" width="120" height="50" rx="6" fill="#fff3e0" stroke="#e88e1f" stroke-width="1.5"/>
+        <text x="225" y="52"  text-anchor="middle" font-size="11" fill="#1a1a1a">Lake Formation</text>
+        <text x="225" y="68"  text-anchor="middle" font-size="11" fill="#1a1a1a">権限確認</text>
+
+        <rect x="165" y="120" width="120" height="50" rx="6" fill="#e8f4fd" stroke="#4a90d9" stroke-width="1.5"/>
+        <text x="225" y="142" text-anchor="middle" font-size="11" fill="#1a1a1a">Athena / Spark SQL</text>
+        <text x="225" y="158" text-anchor="middle" font-size="11" fill="#1a1a1a">(統合サービス)</text>
+
+        <rect x="430" y="70" width="110" height="50" rx="6" fill="#e8f5e9" stroke="#4caf50" stroke-width="1.5"/>
+        <text x="485" y="91"  text-anchor="middle" font-size="11" fill="#1a1a1a">Amazon S3</text>
+        <text x="485" y="107" text-anchor="middle" font-size="11" fill="#1a1a1a">データファイル</text>
+
+        <line x1="120" y1="95" x2="165" y2="55"  stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="120" y1="95" x2="165" y2="145" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="225" y1="80" x2="225" y2="120" stroke="#e88e1f" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+        <line x1="285" y1="145" x2="430" y2="100" stroke="#4a90d9" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#888"/>
+          </marker>
+        </defs>
+
+        <text x="300" y="190" text-anchor="middle" font-size="10" fill="#555">統合サービスが S3 を読む(ユーザーは S3 認証情報を持たない)</text>
+      </svg>
+
+      <p>
+        この設計では、ユーザーやアプリケーションコードは S3 の認証情報を直接受け取りません。
+        モデルトレーニングや特徴量エンジニアリングのように、Spark ジョブから
+        <code>s3.get_object()</code> などで直接 S3 ファイルにアクセスしたい場合は、
+        Lake Formation とは別に IAM ロールや S3 バケットポリシーを設定する必要がありました。
+        結果として、SQL 用と直接ファイルアクセス用で権限管理が二重になる問題がありました。
+      </p>
+
+      <h2>新機能 — テーブル権限に基づく一時的 S3 認証情報の発行</h2>
+      <p>
+        2026年6月11日のリリースで、Lake Formation は新しい API
+        <code>GetTemporaryDataLocationCredentials</code> を追加しました。
+        この API を呼び出すと、呼び出し元のテーブル権限に基づいてスコープ付きの一時的 S3 認証情報が返ります。
+        アプリケーションはこの認証情報を使って S3 ファイルに直接アクセスできます。
+      </p>
+
+      <h3>権限と S3 アクセスのマッピング</h3>
+      <table style="border-collapse:collapse;width:100%;margin:1rem 0">
+        <thead>
+          <tr style="background:#f0f0f0">
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left">Lake Formation テーブル権限</th>
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left">発行される S3 認証情報の権限</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem"><code>SELECT</code></td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">読み取り専用 (READ)</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem"><code>SUPER</code></td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">読み取り + 書き込み (READ_WRITE)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>発行される認証情報は登録済み S3 ロケーションにスコープが絞られるため、他のバケットへの横断は不可能です。</p>
+
+      <h3>API の使用例</h3>
+      <pre><code># GetTemporaryDataLocationCredentials で一時認証情報を取得する例
+import boto3
+
+lakeformation = boto3.client('lakeformation', region_name='ap-northeast-1')
+
+response = lakeformation.get_temporary_data_location_credentials(
+    ResourceArn='arn:aws:s3:::my-data-lake/processed/sales/',
+    Permissions=['SELECT'],   # READ アクセスを要求
+    DurationSeconds=3600
+)
+
+# 返却された認証情報で直接 S3 操作
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=response['Credentials']['AccessKeyId'],
+    aws_secret_access_key=response['Credentials']['SecretAccessKey'],
+    aws_session_token=response['Credentials']['SessionToken'],
+)
+s3.download_file('my-data-lake', 'processed/sales/data.parquet', '/tmp/data.parquet')</code></pre>
+
+      <h2>対応バージョンと統合方法</h2>
+      <p>この機能は以下の環境で利用できます。</p>
+      <ul>
+        <li>Amazon EMR 7.13 以降(Spark Full Table Access モードに組み込み済み)</li>
+        <li>Boto3 1.42.29 以降</li>
+        <li>AWS Java SDK 2.41.32 以降</li>
+        <li>AWS CLI 2.33.1 以降</li>
+      </ul>
+      <p>
+        EMR で Full Table Access (FTA) モードを使用した場合、Lake Formation に登録済みのテーブルには
+        Lake Formation 認証情報が自動的に使われ、未登録のテーブルにはランタイムロールの認証情報が使われます。
+        Apache Spark または Trino アプリケーションとの統合は、API 直接呼び出しのほか、
+        AWS が提供するオープンソースプラグインでも対応しています。
+      </p>
+
+      <h2>監査ログの統合</h2>
+      <p>
+        SQL クエリとファイルレベルの両方のアクセスが AWS CloudTrail に記録されます。
+        これにより、これまでは SQL 操作と S3 アクセスで分かれていた監査証跡を統一できます。
+      </p>
+
+      <h2>まとめ — 何が変わったか</h2>
+      <table style="border-collapse:collapse;width:100%;margin:1rem 0">
+        <thead>
+          <tr style="background:#f0f0f0">
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left">観点</th>
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left">従来</th>
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left">新機能</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">SQL クエリのアクセス制御</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">Lake Formation で管理</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">Lake Formation で管理(変わらず)</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">S3 直接ファイルアクセス</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">IAM / S3 バケットポリシーが別途必要</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">Lake Formation テーブル権限から一時認証情報を発行</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">権限管理の数</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">SQL 用と S3 用の二重管理</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">単一の権限セットで統一</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">監査ログ</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">SQL と S3 で分散</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem">CloudTrail で統一</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://aws.amazon.com/jp/about-aws/whats-new/2026/06/aws-lake-formation-access-data-amazon-s3/" rel="noopener">AWS What's New — AWS Lake Formation は、Amazon S3 内の基盤となるデータにアクセスするためのテーブル権限を拡張します (2026-06-11)</a></li>
+          <li><a href="https://docs.aws.amazon.com/lake-formation/latest/APIReference/API_GetTemporaryDataLocationCredentials.html" rel="noopener">AWS ドキュメント — GetTemporaryDataLocationCredentials API Reference</a></li>
+          <li><a href="https://docs.aws.amazon.com/lake-formation/latest/dg/storage-permissions.html" rel="noopener">AWS ドキュメント — Storage access management - AWS Lake Formation</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
