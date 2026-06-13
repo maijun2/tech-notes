@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCI の Cloud Guard と Security Zones の違いは? | maijun の技術質問ノート</title>
+  <meta name="description" content="Cloud Guard はテナンシ全体を監視して設定ミスや不審な操作を「検知」する Detective サービス、Security Zones は指定 Compartment で危険な操作を「予防」してブロックする Preventive サービス。両者は補完関係で併用が推奨されます。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time datetime="2026-06-13">2026-06-13</time>
+      </p>
+      <h1>OCI の Cloud Guard と Security Zones の違いは?</h1>
+
+      <div class="lead">
+        <p>
+          両者はどちらも OCI のセキュリティ姿勢(Security Posture)を守るためのサービスですが、
+          役割が <strong>「検知(Detective)」と「予防(Preventive)」</strong> で明確に分かれます。
+          <strong>Cloud Guard</strong> はテナンシ全体を継続的に監視し、設定ミスや不審なアクティビティを
+          <strong>検知して通知・自動修正</strong>する仕組みです。
+          一方 <strong>Security Zones</strong> は指定した Compartment に対して「やってはいけない構成」を
+          ポリシーで定義し、違反する操作を <strong>作成・変更の時点でブロック</strong>します。
+          Security Zones の違反検知は内部的に Cloud Guard を利用するため、
+          <strong>Cloud Guard を先に有効化した上で両者を併用する</strong>のが Oracle 推奨の構成です。
+        </p>
+      </div>
+
+      <!-- ======== 概念比較 SVG ======== -->
+      <svg viewBox="0 0 780 300" xmlns="http://www.w3.org/2000/svg"
+           style="width:100%;max-width:780px;display:block;margin:1.5rem auto;font-family:sans-serif;font-size:12px;">
+
+        <!-- Cloud Guard 側 -->
+        <rect x="10" y="10" width="360" height="280" rx="8" fill="#fff3e0" stroke="#e67e22" stroke-width="1.5"/>
+        <text x="30" y="34" fill="#7a3000" font-weight="bold" font-size="14">Cloud Guard(検知 / Detective)</text>
+        <text x="30" y="54" fill="#7a3000" font-size="11">テナンシ全体を継続監視。問題を「見つけて知らせる」</text>
+
+        <rect x="30" y="70" width="150" height="44" rx="4" fill="#ffe0b2" stroke="#e67e22"/>
+        <text x="105" y="89" text-anchor="middle" fill="#7a3000">Detector Recipe</text>
+        <text x="105" y="104" text-anchor="middle" fill="#7a3000" font-size="10">問題を検出するルール</text>
+
+        <line x1="180" y1="92" x2="210" y2="92" stroke="#e67e22" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+        <rect x="210" y="70" width="140" height="44" rx="4" fill="#ffe0b2" stroke="#e67e22"/>
+        <text x="280" y="89" text-anchor="middle" fill="#7a3000">Problem</text>
+        <text x="280" y="104" text-anchor="middle" fill="#7a3000" font-size="10">検出結果(リスク)</text>
+
+        <line x1="280" y1="114" x2="280" y2="140" stroke="#e67e22" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+        <rect x="105" y="140" width="170" height="44" rx="4" fill="#ffe0b2" stroke="#e67e22"/>
+        <text x="190" y="159" text-anchor="middle" fill="#7a3000">Responder Recipe</text>
+        <text x="190" y="174" text-anchor="middle" fill="#7a3000" font-size="10">通知 / 自動修正アクション</text>
+
+        <rect x="30" y="205" width="320" height="68" rx="4" fill="#fbe9d7" stroke="#e67e22" stroke-dasharray="4,2"/>
+        <text x="190" y="228" text-anchor="middle" fill="#7a3000" font-size="11">特徴</text>
+        <text x="190" y="246" text-anchor="middle" fill="#7a3000" font-size="10">・操作は許可される(事後に検知)</text>
+        <text x="190" y="262" text-anchor="middle" fill="#7a3000" font-size="10">・リージョン横断でテナンシ全体が対象</text>
+
+        <!-- Security Zones 側 -->
+        <rect x="410" y="10" width="360" height="280" rx="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="1.5"/>
+        <text x="430" y="34" fill="#1b5e20" font-weight="bold" font-size="14">Security Zones(予防 / Preventive)</text>
+        <text x="430" y="54" fill="#1b5e20" font-size="11">危険な操作を「そもそも起こさせない」</text>
+
+        <rect x="430" y="70" width="320" height="44" rx="4" fill="#c8e6c9" stroke="#388e3c"/>
+        <text x="590" y="89" text-anchor="middle" fill="#1b5e20">Security Zone Recipe(ポリシー集)</text>
+        <text x="590" y="104" text-anchor="middle" fill="#1b5e20" font-size="10">例: パブリックサブネット禁止 / 非暗号化禁止</text>
+
+        <line x1="590" y1="114" x2="590" y2="138" stroke="#388e3c" stroke-width="1.5" marker-end="url(#arrG)"/>
+
+        <rect x="470" y="138" width="240" height="46" rx="4" fill="#c8e6c9" stroke="#388e3c"/>
+        <text x="590" y="160" text-anchor="middle" fill="#1b5e20">リソース作成 / 変更を検証</text>
+        <text x="590" y="176" text-anchor="middle" fill="#c0392b" font-size="11" font-weight="bold">違反なら DENY(拒否)</text>
+
+        <rect x="430" y="205" width="320" height="68" rx="4" fill="#dcedc8" stroke="#388e3c" stroke-dasharray="4,2"/>
+        <text x="590" y="228" text-anchor="middle" fill="#1b5e20" font-size="11">特徴</text>
+        <text x="590" y="246" text-anchor="middle" fill="#1b5e20" font-size="10">・操作時点でブロック(ガードレール)</text>
+        <text x="590" y="262" text-anchor="middle" fill="#1b5e20" font-size="10">・指定した Compartment 配下のみが対象</text>
+
+        <defs>
+          <marker id="arrO" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#e67e22"/>
+          </marker>
+          <marker id="arrG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#388e3c"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <h2>Cloud Guard:検知して通知・是正する「監視カメラ」</h2>
+      <p>
+        Cloud Guard は OCI のリソース設定やオペレーター・ユーザーのアクティビティを継続的に調べ、
+        セキュリティ上の弱点やリスクのある操作を <strong>検知(detect)</strong> するクラウドネイティブサービスです。
+        検知後は設定に応じて、推奨アクションの提示・支援・自動的な是正(corrective action)を行います。
+      </p>
+      <p>
+        Cloud Guard は次の要素で構成されます。
+      </p>
+      <ul>
+        <li><strong>Target(ターゲット)</strong>:監視対象とする Compartment。配下を再帰的にスキャンします。</li>
+        <li><strong>Detector Recipe(ディテクター・レシピ)</strong>:何を「問題」とみなすかのルール集。
+          設定ミスを見る Configuration Detector、不審な操作を見る Activity Detector、脅威を見る Threat Detector などがあります。</li>
+        <li><strong>Problem(プロブレム)</strong>:Detector が検出したリスクそのもの。コンソールで一覧・管理します。</li>
+        <li><strong>Responder Recipe(レスポンダー・レシピ)</strong>:Problem に対する応答。通知(Event/Notifications 連携)や、
+          リソースの自動修正アクションを実行します。</li>
+      </ul>
+      <p>
+        ポイントは、Cloud Guard は <strong>あくまで事後検知ベース</strong>であり、危険な操作そのものをリアルタイムに止めるわけではない点です。
+        「公開されてしまったバケット」を見つけて知らせ、場合によっては自動で非公開に戻す——これが Cloud Guard の役割です。
+        監視範囲はリージョンを横断してテナンシ全体に及びます。
+      </p>
+
+      <h2>Security Zones:違反操作を拒否する「ガードレール」</h2>
+      <p>
+        Security Zone は <strong>1 つ以上の Compartment</strong> と <strong>Security Zone Recipe</strong> を関連付けたものです。
+        その Compartment 内でリソースを作成・更新しようとすると、OCI はその操作を Recipe 内の
+        <strong>Security Zone Policy</strong> に照らして検証し、<strong>ポリシーに 1 つでも違反すれば操作を拒否(deny)</strong> します。
+      </p>
+      <p>
+        ポリシーは Oracle が用意する Maximum Security Recipe を基本とし、例えば次のような「やってはいけないこと」を強制します。
+      </p>
+      <ul>
+        <li>パブリックサブネットやインターネットに公開された Object Storage バケットの作成を禁止する</li>
+        <li>暗号化されていない Block Volume / Boot Volume の作成を禁止する</li>
+        <li>顧客管理キー(customer-managed key)以外での暗号化を禁止する</li>
+        <li>Security Zone 外の Compartment へリソースを移動することを禁止する</li>
+      </ul>
+      <p>
+        つまり Security Zones は <strong>操作の時点で物理的にブロックする予防的ガードレール</strong>であり、
+        対象は指定した Compartment 配下に限定されます。本番環境など「絶対に設定ミスを許したくない」範囲に適用するのが典型的な使い方です。
+      </p>
+
+      <h2>両者の関係:Cloud Guard が Security Zones を下支えする</h2>
+      <p>
+        Security Zones は <strong>既存リソースのポリシー違反検知に Cloud Guard を利用</strong>します。
+        Security Zone は「新規作成・変更」をブロックしますが、Zone を設定する <em>前から存在していた</em>リソースは
+        既にそこにあるため、作成時ブロックの対象になりません。その既存リソースの違反を見つけるのが Cloud Guard です。
+        そのため Oracle のドキュメントでは <strong>Security Zone を作成する前に Cloud Guard を有効化しておくこと</strong>が前提とされています。
+      </p>
+      <p>
+        ひとことで整理すると次のようになります。
+      </p>
+      <pre><code>Cloud Guard     : 問題を「見つけて知らせる / 直す」(検知 = Detective)
+Security Zones  : 問題を「そもそも起こさせない」  (予防 = Preventive)</code></pre>
+
+      <h2>比較表</h2>
+      <table style="border-collapse:collapse;width:100%;font-size:0.9rem;">
+        <thead>
+          <tr style="background:#e8eaf6;">
+            <th style="border:1px solid #bbb;padding:6px 10px;text-align:left;">観点</th>
+            <th style="border:1px solid #bbb;padding:6px 10px;text-align:left;">Cloud Guard</th>
+            <th style="border:1px solid #bbb;padding:6px 10px;text-align:left;">Security Zones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #bbb;padding:6px 10px;">アプローチ</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">検知(Detective)</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">予防(Preventive)</td>
+          </tr>
+          <tr style="background:#f9f9f9;">
+            <td style="border:1px solid #bbb;padding:6px 10px;">作用するタイミング</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">操作後にスキャンで検出</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">操作時に検証してブロック</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bbb;padding:6px 10px;">違反した操作の扱い</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">許可される(Problem として検出)</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">拒否される(deny)</td>
+          </tr>
+          <tr style="background:#f9f9f9;">
+            <td style="border:1px solid #bbb;padding:6px 10px;">対象範囲</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">テナンシ全体(リージョン横断)</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">指定した Compartment 配下</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bbb;padding:6px 10px;">主な構成要素</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">Target / Detector / Problem / Responder</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">Security Zone / Recipe / Policy</td>
+          </tr>
+          <tr style="background:#f9f9f9;">
+            <td style="border:1px solid #bbb;padding:6px 10px;">既存リソースへの効果</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">スキャンして検出できる</td>
+            <td style="border:1px solid #bbb;padding:6px 10px;">作成時ブロックのため対象外(検知は Cloud Guard に依存)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>どう使い分けるか</h2>
+      <p>
+        両者は競合するものではなく <strong>補完関係</strong>にあります。
+        テナンシ全体には <strong>Cloud Guard</strong> を有効化して継続的な可視性とアラートを確保し、
+        本番環境など特にミスを許さない Compartment には <strong>Security Zones</strong> を被せて
+        危険な構成変更を未然に防ぐ——という二段構えが基本方針です。
+        「広く監視する Cloud Guard」と「狭く厳しく守る Security Zones」と覚えると整理しやすくなります。
+      </p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/security-zone/using/security-zones.htm" rel="noopener">Oracle Docs — Overview of Security Zones(公式)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/cloud-guard/using/index.htm" rel="noopener">Oracle Docs — Cloud Guard ドキュメント(公式)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Security/Concepts/security_features.htm" rel="noopener">Oracle Docs — Security Services(OCI セキュリティサービス概要・公式)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
