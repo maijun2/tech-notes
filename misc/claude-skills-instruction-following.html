@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>なぜ Claude の Skills は指示を忠実に守って実行できるのか | maijun の技術質問ノート</title>
+  <meta name="description" content="Agent Skills が指示を忠実に守れるのは、Progressive Disclosure による段階的ロードで関連する指示だけを文脈に載せ、決定的なコード実行を組み合わせているから。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time datetime="2026-06-13">2026-06-13</time>
+      </p>
+      <h1>なぜ Claude の Skills は指示を忠実に守って実行できるのか</h1>
+
+      <div class="lead">
+        <p>
+          Agent Skills が指示を忠実に守れる最大の理由は <strong>Progressive Disclosure(段階的開示)</strong> という設計にあります。
+          全ての指示を最初から文脈に詰め込むのではなく、「いま必要な Skill の本文だけ」をその都度ファイルから読み込むため、
+          指示が他の情報に薄められず、最新かつ集中した状態でモデルに渡ります。
+          さらに、ゆらぎを許さない処理は Markdown の指示ではなく <strong>バンドルされたスクリプト(コード)</strong> に任せることで、
+          「自然言語で柔軟に従う部分」と「コードで決定的に実行する部分」を分離できる点も忠実さを支えています。
+        </p>
+      </div>
+
+      <h2>Skill は 3 階層で段階的に読み込まれる</h2>
+      <p>
+        Anthropic の公式ドキュメントによれば、Skill の中身は 3 つのレベルに分かれ、それぞれ異なるタイミングで context に読み込まれます。
+        これが「必要なものだけを、必要なときに」を実現する仕組みです。
+      </p>
+
+      <table>
+        <thead>
+          <tr><th>レベル</th><th>読み込まれるタイミング</th><th>トークンコスト</th><th>内容</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Level 1: メタデータ</td><td>常時(起動時)</td><td>1 Skill あたり約 100 トークン</td><td>YAML frontmatter の <code>name</code> と <code>description</code></td></tr>
+          <tr><td>Level 2: 指示本文</td><td>Skill が発動したとき</td><td>5k トークン未満</td><td>SKILL.md 本文の手順・ガイダンス</td></tr>
+          <tr><td>Level 3+: リソース</td><td>必要に応じて</td><td>実質無制限</td><td>バンドルされた追加ファイル(bash 経由で実行、本文は context に載らない)</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        起動時には各 Skill の <code>name</code> と <code>description</code> だけが system prompt に載ります。
+        Claude は「どんな Skill が存在し、いつ使うべきか」だけを知っている状態で、context をほとんど消費しません。
+        ユーザーの依頼が <code>description</code> と一致したとき、初めて Claude が bash で SKILL.md をファイルから読み込み、本文の指示が context に入ります。
+      </p>
+
+      <h2>なぜ「段階的」だと指示に忠実になるのか</h2>
+      <p>
+        ポイントは <strong>「指示の濃度」</strong> です。多数の Skill をインストールしていても、起動時に常駐するのは 1 件あたり約 100 トークンの要約だけ。
+        実際にタスクへ着手した瞬間に、その作業に関係する SKILL.md 本文だけが読み込まれます。
+        無関係な指示が大量に混ざって肝心の手順が埋もれる、という事態が起きにくく、モデルは「いま守るべきルール」に集中できます。
+      </p>
+      <p>
+        公式ドキュメントの言葉を借りれば、「progressive disclosure は、どの瞬間にも関連するコンテンツだけが context window を占めることを保証する(Progressive disclosure ensures only relevant content occupies the context window at any given time)」ものです。
+        指示が常に「新鮮・近距離・低ノイズ」で渡ることが、忠実な実行の土台になっています。
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 640 250" role="img" aria-label="Progressive Disclosure の 3 階層を示す図" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="640" height="250" fill="#ffffff"></rect>
+          <!-- Level 1 -->
+          <rect x="20" y="30" width="180" height="180" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"></rect>
+          <text x="110" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#3730a3">Level 1</text>
+          <text x="110" y="78" text-anchor="middle" font-size="12" fill="#1e1b4b">メタデータ</text>
+          <text x="110" y="98" text-anchor="middle" font-size="11" fill="#4b5563">name + description</text>
+          <text x="110" y="120" text-anchor="middle" font-size="11" fill="#4b5563">常時 / 約100トークン</text>
+          <!-- arrow -->
+          <line x1="200" y1="120" x2="240" y2="120" stroke="#9ca3af" stroke-width="2" marker-end="url(#arrow)"></line>
+          <!-- Level 2 -->
+          <rect x="240" y="30" width="180" height="180" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"></rect>
+          <text x="330" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#065f46">Level 2</text>
+          <text x="330" y="78" text-anchor="middle" font-size="12" fill="#064e3b">指示本文</text>
+          <text x="330" y="98" text-anchor="middle" font-size="11" fill="#4b5563">SKILL.md 本文</text>
+          <text x="330" y="120" text-anchor="middle" font-size="11" fill="#4b5563">発動時 / 5k未満</text>
+          <!-- arrow -->
+          <line x1="420" y1="120" x2="460" y2="120" stroke="#9ca3af" stroke-width="2" marker-end="url(#arrow)"></line>
+          <!-- Level 3 -->
+          <rect x="460" y="30" width="160" height="180" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"></rect>
+          <text x="540" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#92400e">Level 3+</text>
+          <text x="540" y="78" text-anchor="middle" font-size="12" fill="#78350f">リソース/コード</text>
+          <text x="540" y="98" text-anchor="middle" font-size="11" fill="#4b5563">追加ファイル</text>
+          <text x="540" y="120" text-anchor="middle" font-size="11" fill="#4b5563">必要時 / 実質無制限</text>
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#9ca3af"></path>
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>必要なレベルだけが順に context に読み込まれる(Progressive Disclosure)</figcaption>
+      </figure>
+
+      <h2>「いつ使うか」を description に書くから的確に発動する</h2>
+      <p>
+        忠実な実行は、そもそも「正しいタイミングで Skill が発動すること」から始まります。
+        Skill の <code>description</code> には、何をするか(what)だけでなく <strong>いつ使うべきか(when)</strong> を書くことが推奨されています。
+        この一文が起動時から常駐し、ユーザーの依頼と照合されるため、関連する場面で確実にトリガーされます。
+      </p>
+
+      <pre><code>---
+name: pdf-processing
+description: Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.
+---</code></pre>
+
+      <p>
+        <code>name</code> は最大 64 文字・英小文字と数字とハイフンのみ、<code>description</code> は最大 1024 文字。
+        いずれも XML タグを含められず、<code>name</code> には予約語 "anthropic" / "claude" を使えません。
+        こうした制約が、発動条件をシンプルで誤動作しにくいものに保っています。
+      </p>
+
+      <h2>ゆらぎを許さない処理はコードに委ねる</h2>
+      <p>
+        自然言語の指示は柔軟ですが、毎回まったく同じ結果になる保証はありません。
+        Agent Skills はここを割り切り、決定的であるべき処理を <strong>バンドルしたスクリプト</strong> に任せられます。
+        Claude はスクリプトを bash で実行し、受け取るのは <em>出力だけ</em>。スクリプト本体のコードは context に載りません。
+      </p>
+      <p>
+        公式ドキュメントは「instructions は柔軟なガイダンスに、code は信頼性に、resources は事実の参照に」と各コンテンツの役割を整理しています。
+        「自然言語で従う部分」と「コードで決定的に実行する部分」を分離することで、フォーマット変換や検証のような厳密さが要る工程の再現性が高まります。
+      </p>
+
+      <h2>まとめ:忠実さを支える 4 つの要素</h2>
+      <ul>
+        <li><strong>Progressive Disclosure</strong>:関連する指示だけをその都度読み込み、ノイズで薄めない</li>
+        <li><strong>低ノイズな常駐情報</strong>:起動時は要約のみ。多数の Skill を入れても文脈を圧迫しない</li>
+        <li><strong>when を含む description</strong>:正しい場面で確実にトリガーされる</li>
+        <li><strong>コードへの委譲</strong>:決定的に実行すべき処理はスクリプトに任せ、再現性を確保</li>
+      </ul>
+
+      <p>
+        なお、Skill は新しい指示やコードを Claude に与える強力な仕組みであるがゆえに、
+        悪意ある Skill は記載された目的と異なる動作を Claude にさせうる、という点も公式に注意喚起されています。
+        利用は自作または Anthropic 由来の <strong>信頼できるソース</strong> に限り、外部 URL を取得する Skill は特に慎重に扱うべきです。
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview" rel="noopener">Agent Skills - Claude Docs(How Skills work / Progressive disclosure / Skill structure / Security considerations)</a></li>
+          <li><a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills" rel="noopener">Equipping agents for the real world with Agent Skills - Anthropic Engineering</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
