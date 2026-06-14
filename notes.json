@@ -1,5 +1,13 @@
 [
   {
+    "title": "OCI プライベート DNS のビュー・ゾーン・リゾルバ三層構造",
+    "category": "oci",
+    "path": "oci/oci-private-dns-view-zone-resolver.html",
+    "date": "2026-06-14",
+    "summary": "OCI プライベート DNS は「ゾーン→ビュー→リゾルバ」の三層構造を持ち、ビューを複数 VCN 間で共有したりスプリットホライズン DNS を実現できる点が AWS Route53 との大きな違いです。",
+    "tags": ["Private DNS", "VCN", "Split-horizon", "DNS"]
+  },
+  {
     "title": "Amazon Bedrock Agents と AgentCore は別物? 役割の違いと使い分け",
     "category": "aws",
     "path": "aws/bedrock-agents-vs-agentcore.html",
