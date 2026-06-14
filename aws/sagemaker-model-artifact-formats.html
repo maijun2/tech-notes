@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SageMaker のモデルアーティファクトはフレームワークごとにどう違うのか | maijun の技術質問ノート</title>
+  <meta name="description" content="SageMaker AI が S3 に保存する model.tar.gz の中身は、XGBoost / PyTorch / TensorFlow などフレームワークごとにバイナリ形式が異なる。各形式の差異と使い分けを整理する。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time datetime="2026-06-14">2026-06-14</time>
+      </p>
+      <h1>SageMaker のモデルアーティファクトはフレームワークごとにどう形式が違うのか</h1>
+
+      <div class="lead">
+        <p>SageMaker AI が S3 に保存する <code>model.tar.gz</code> は、どのフレームワークでも「gzip 圧縮した tar アーカイブ」という<strong>外側の入れ物は共通</strong>です。違うのは<strong>中身のモデルファイルのバイナリ形式</strong>で、XGBoost は UBJSON、PyTorch は pickle ベースの <code>.pth</code>、TensorFlow は Protocol Buffers の SavedModel、Hugging Face 系は safetensors、と系統が分かれます。大きくは「① pickle 系(Python 依存・コード実行リスクあり)」「② Protobuf 系(言語非依存・グラフ込み)」「③ tensor 専用の安全な形式(safetensors)」の 3 系統で捉えると整理しやすいです。用途では、表形式データなら XGBoost、研究・柔軟な学習なら PyTorch、本番のクロス言語配信なら TensorFlow SavedModel / ONNX、LLM の重み配布なら safetensors が定番です。</p>
+      </div>
+
+      <h2>前提: SageMaker の入れ物は共通、中身は自由</h2>
+      <p>SageMaker の学習ジョブでは、コンテナ内の <code>/opt/ml/model</code> に書き出したファイル群が、ジョブ完了時に <strong>SageMaker によって自動で tar + gzip 圧縮され</strong>、<code>model.tar.gz</code> として S3 の出力パスに置かれます。SageMaker 自体は中のファイル形式を規定しません。つまり「どんなバイナリ形式で保存するか」は、使ったフレームワーク(の保存 API)が決めます。</p>
+
+      <pre><code># 学習コンテナ内: ここに置いたものが model.tar.gz になる
+/opt/ml/model/
+├── model.pth            # 例) PyTorch の重み(pickle ベース)
+└── code/
+    ├── inference.py     # 推論ハンドラ
+    └── requirements.txt</code></pre>
+
+      <p>S3 上では次のような 1 ファイルになります(中身はフレームワーク次第)。</p>
+
+      <svg viewBox="0 0 560 220" role="img" aria-label="model.tar.gz の構造図" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fafafa">
+        <text x="20" y="30" font-size="14" font-weight="bold">S3 のモデルアーティファクト</text>
+        <rect x="20" y="45" width="200" height="50" rx="6" fill="#eef4ff" stroke="#4a78d6"/>
+        <text x="120" y="68" font-size="13" text-anchor="middle">s3://.../output/</text>
+        <text x="120" y="85" font-size="13" text-anchor="middle" font-weight="bold">model.tar.gz</text>
+        <text x="250" y="60" font-size="12">= gzip( tar( /opt/ml/model の中身 ) )</text>
+        <text x="250" y="80" font-size="12" fill="#666">入れ物はどの FW でも共通</text>
+        <line x1="120" y1="95" x2="120" y2="120" stroke="#4a78d6"/>
+        <rect x="20" y="120" width="520" height="80" rx="6" fill="#fff" stroke="#bbb"/>
+        <text x="35" y="142" font-size="12" font-weight="bold">中身のバイナリ形式はフレームワークごとに異なる:</text>
+        <text x="35" y="163" font-size="12">・XGBoost → UBJSON / JSON</text>
+        <text x="230" y="163" font-size="12">・PyTorch → .pth (pickle)</text>
+        <text x="400" y="163" font-size="12">・TF → SavedModel(.pb)</text>
+        <text x="35" y="184" font-size="12">・scikit-learn → joblib/pickle</text>
+        <text x="230" y="184" font-size="12">・Transformers → safetensors</text>
+        <text x="400" y="184" font-size="12">・相互運用 → ONNX</text>
+      </svg>
+
+      <h2>フレームワーク別のバイナリ形式</h2>
+
+      <h3>XGBoost — UBJSON / JSON(旧バイナリは廃止)</h3>
+      <p>XGBoost は学習済みの木構造(Booster)を保存します。歴史的には独自バイナリ形式でしたが、移植性のため v1.0.0 で JSON、v1.6.0 で <strong>UBJSON(Universal Binary JSON)</strong>に対応し、<strong>v2.1.0 から UBJSON がデフォルト</strong>になりました。UBJSON は浮動小数点をバイナリで持つため、JSON テキスト化で起きる精度劣化を避けつつ JSON と同じ文書構造を保てます。旧来の独自バイナリ形式は <strong>v3.1 で削除</strong>され、<code>best_iteration</code> や特徴量名など新しい属性を保存できないという制約がありました。</p>
+      <pre><code># 推奨される保存(拡張子で形式が決まる)
+booster.save_model("model.ubj")   # UBJSON(2.1 以降のデフォルト)
+booster.save_model("model.json")  # JSON(人間が読める)
+# .pkl での pickle 保存はバージョン間の互換が保証されない点に注意</code></pre>
+
+      <h3>PyTorch — .pth / .pt(pickle ベース)</h3>
+      <p>PyTorch は標準で <code>torch.save</code> を使い、<strong>Python の pickle</strong> でシリアライズします。保存対象は「<code>state_dict</code>(重みのみ)」が推奨で、モデル全体を保存することもできます。いずれも <strong>Python 専用</strong>で、ロード時に <code>nn.Module</code> を定義したクラスコードと PyTorch ランタイムが必要です。pickle ベースのため、信頼できないファイルのロードは<strong>任意コード実行のリスク</strong>があります(近年は <code>weights_only=True</code> での読み込みが推奨)。</p>
+      <pre><code># 推奨: 重みだけ保存
+torch.save(model.state_dict(), "model.pth")
+# 復元にはモデルクラス定義が必須
+model.load_state_dict(torch.load("model.pth", weights_only=True))</code></pre>
+
+      <h3>TensorFlow / Keras — SavedModel(Protocol Buffers)</h3>
+      <p>TensorFlow の <strong>SavedModel</strong> は単一ファイルではなく<strong>ディレクトリ</strong>で、計算グラフを Protocol Buffers でエンコードした <code>saved_model.pb</code> と、重みを格納する <code>variables/</code> などから構成されます。グラフ(計算そのもの)を含むため<strong>言語非依存</strong>で、Python だけでなく C++ / Java など TF ランタイムから読み込めます。本番の推論サーバ(TensorFlow Serving)との相性がよい形式です。Keras は <code>.keras</code>(zip)や旧 HDF5(<code>.h5</code>)でも保存できます。</p>
+      <pre><code>model/
+├── saved_model.pb          # Protobuf: グラフ + シグネチャ
+├── variables/              # 重み(チェックポイント形式)
+│   ├── variables.data-00000-of-00001
+│   └── variables.index
+└── assets/                 # 語彙ファイルなど(任意)</code></pre>
+
+      <h3>scikit-learn — pickle / joblib</h3>
+      <p>scikit-learn の推定器は <strong>pickle</strong>(または NumPy 配列を効率的に扱う <strong>joblib</strong>)で保存します。PyTorch 同様 Python 専用で、ライブラリのバージョン差で復元できないことがあるため、保存時の sklearn バージョンを記録しておくのが定石です。</p>
+
+      <h3>Hugging Face Transformers — safetensors</h3>
+      <p>LLM など Transformers 系の重み配布では <strong>safetensors</strong> が標準になりました。<strong>テンソル(数値データ)とメタデータだけ</strong>を格納する形式で、pickle を使わず実行コードを一切含みません。外部監査でも任意コード実行につながる重大な欠陥は見つからず、Hugging Face Hub のデフォルトになっています。さらに <strong>遅延ロード(lazy loading)</strong>に対応し、CPU では従来比で大幅に高速にロードできます。</p>
+
+      <h3>ONNX — フレームワーク非依存の交換形式</h3>
+      <p><strong>ONNX</strong> は Microsoft と Facebook(Meta)が共同で作った<strong>オープンな交換フォーマット</strong>で、内部は Protobuf スキーマで定義されます。あるフレームワーク(例: PyTorch)で学習したモデルを別のランタイム(ONNX Runtime や TensorFlow)で動かせるため、<strong>学習と推論でフレームワークを分けたい</strong>場合や、特定ランタイムへの最適化に使われます。学習よりも推論に最適化された位置づけです。</p>
+
+      <h2>3 系統で捉えると整理しやすい</h2>
+      <table>
+        <thead>
+          <tr><th>系統</th><th>代表形式</th><th>性質</th><th>主なフレームワーク</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>① pickle 系</td><td>.pth / .pkl / joblib</td><td>Python 依存・要モデルコード・コード実行リスクあり</td><td>PyTorch, scikit-learn</td></tr>
+          <tr><td>② Protobuf 系</td><td>SavedModel(.pb), ONNX</td><td>言語非依存・計算グラフを含む・本番/交換向き</td><td>TensorFlow/Keras, ONNX</td></tr>
+          <tr><td>③ JSON / tensor 専用</td><td>UBJSON/JSON, safetensors</td><td>移植性が高い・safetensors はコードを含まず安全</td><td>XGBoost, Transformers</td></tr>
+        </tbody>
+      </table>
+
+      <h2>用途別の使い分けの目安</h2>
+      <ul>
+        <li><strong>表形式(テーブル)データの予測</strong>: XGBoost(UBJSON)。SageMaker 組み込みアルゴリズムとしても提供され、軽量で扱いやすい。</li>
+        <li><strong>研究・カスタム学習・柔軟なモデル設計</strong>: PyTorch(.pth)。ただし配布・本番では safetensors や ONNX への変換を検討。</li>
+        <li><strong>クロス言語のサービング・大規模本番推論</strong>: TensorFlow SavedModel(TF Serving)や ONNX(ONNX Runtime)。</li>
+        <li><strong>LLM・生成 AI の重み配布</strong>: safetensors。安全性とロード速度の両面で有利。</li>
+        <li><strong>学習と推論で環境を分けたい / ベンダー中立にしたい</strong>: ONNX に変換して交換。</li>
+      </ul>
+
+      <h2>運用上の注意</h2>
+      <ul>
+        <li><strong>pickle 系は信頼できないファイルをロードしない</strong>。任意コード実行の恐れがあるため、出所不明の <code>.pth</code> / <code>.pkl</code> をそのまま読み込まない。XGBoost も「XGBoost 自身が出力した JSON 以外を load しない」ことが推奨されています。</li>
+        <li><strong>バージョン互換</strong>: pickle 系・XGBoost の pickle 保存はライブラリのバージョン差で壊れることがある。学習時のフレームワークバージョンを必ず記録する。</li>
+        <li><strong>SageMaker での解凍方法</strong>: 既定では推論コンテナ起動時に <code>model.tar.gz</code> を展開しますが、大規模モデルでは<strong>非圧縮(uncompressed)で S3 プレフィックスのまま配置</strong>して起動を速める方法も用意されています。</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-algo-output.html" rel="noopener">Amazon SageMaker AI — Provide model artifacts(model.tar.gz / /opt/ml/model の出力)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-uncompressed.html" rel="noopener">Amazon SageMaker AI — Deploying uncompressed models</a></li>
+          <li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/saving_model.html" rel="noopener">XGBoost — Introduction to Model IO(JSON / UBJSON / 旧バイナリ形式の扱い)</a></li>
+          <li><a href="https://pytorch.org/tutorials/beginner/saving_loading_models.html" rel="noopener">PyTorch — Saving and Loading Models(state_dict / pickle)</a></li>
+          <li><a href="https://www.tensorflow.org/guide/saved_model" rel="noopener">TensorFlow — Using the SavedModel format(Protocol Buffers)</a></li>
+          <li><a href="https://huggingface.co/docs/safetensors/index" rel="noopener">Hugging Face — Safetensors(tensor 専用・安全なシリアライズ)</a></li>
+          <li><a href="https://huggingface.co/blog/safetensors-security-audit" rel="noopener">Hugging Face Blog — Safetensors audited as really safe and becoming the default</a></li>
+          <li><a href="https://onnx.ai/onnx/intro/concepts.html" rel="noopener">ONNX — Concepts(Protobuf ベースの交換フォーマット)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
