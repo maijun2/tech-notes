@@ -4,6 +4,8 @@
 # 例外: Cloudflare Pages Functions(動的OGP生成)の依存管理に必要な JSON は追跡する
 !package.json
 !package-lock.json
+# 例外: 記事メタデータの単一真実源(一覧/ナビの元データ)
+!notes.json
 *.yaml
 *.yml
 *.env
@@ -20,3 +22,6 @@ Thumbs.db
 
 # Node 等(本リポジトリはビルド不要のため不要物)
 node_modules/
+
+# Pagefind の検索索引(デプロイ時に npx pagefind が生成する成果物・コミットしない)
+/pagefind/

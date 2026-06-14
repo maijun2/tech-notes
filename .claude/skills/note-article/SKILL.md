@@ -17,6 +17,12 @@ description: ユーザーが「質問:」で始まる技術質問をしたとき
 ### 2. 記事ファイルの作成
 
 - `_template/article.html` を複製して書き始める(構造・class 名を変えない)
+  - テンプレートの `<main data-pagefind-body>` はそのまま使う。これにより
+    複製した記事は全文検索(Pagefind)の索引対象になる。Skill 側で索引用の
+    追加作業は不要
+  - 記事末尾の戻り導線(`.back-link`)は、配置したカテゴリに合わせて
+    `../aws.html` / `../oci.html` / `../misc.html` とラベルを選ぶ
+    (もう一方の「トップへ」= `../index.html` はそのまま)
 - カテゴリを判定し、`aws/` `oci/` `misc/` のいずれかに配置する
 - ファイル名は内容を表す英小文字ハイフン区切りの slug にする
 - 記事の構成:
@@ -43,20 +49,23 @@ description: ユーザーが「質問:」で始まる技術質問をしたとき
 
 > 仕組みの詳細は `docs/ogp-image.md` を参照。
 
-### 3. 目次の更新
+### 3. メタデータの登録(notes.json)
 
-- `index.html` の該当カテゴリの `<ul class="entries">` の**先頭**に
-  以下の形式で 1 行追加する:
+- `index.html` は編集しない。一覧・新着・カテゴリページ(`aws.html` /
+  `oci.html` / `misc.html`)は `notes.json` から自動生成される。
+- `notes.json` の配列に、作成した記事のオブジェクトを 1 件追記する
+  (JSON として valid なまま。`category` は `aws` / `oci` / `misc` のいずれか、
+  `summary` は `.lead` 冒頭の結論 1 文、`date` は記事の `<time>` と一致させる):
 
-```html
-<li><a class="entry" href="aws/your-slug.html"><span class="entry-title">記事タイトル</span><span class="leader"></span><time datetime="2026-06-13">2026-06-13</time></a></li>
+```json
+{ "title": "記事タイトル", "category": "aws", "path": "aws/your-slug.html", "date": "2026-06-13", "summary": "結論1文", "tags": ["..."] }
 ```
 
 ### 4. commit と Pull Request
 
 ```bash
 git checkout -b note/<slug>
-git add <記事ファイル> index.html
+git add <記事ファイル> notes.json
 git commit -m "note: <記事タイトル>"
 git push -u origin note/<slug>
 ```
@@ -72,5 +81,5 @@ git push -u origin note/<slug>
 - [ ] コードブロックが `<pre><code>` で囲まれているか
 - [ ] OGP メタタグ(og:title / og:description / og:url / og:image)を記事内容に合わせたか
 - [ ] og:image の title= が encodeURIComponent された H1 になっているか
-- [ ] index.html にリンクを追記したか
+- [ ] notes.json にエントリを追記したか(JSON として valid か)
 - [ ] ブランチ名が note/<slug> になっているか

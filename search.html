@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>検索 | maijun の技術質問ノート</title>
+  <meta name="description" content="maijun の技術質問ノートの全文検索。AWS / OCI / その他の記事本文を横断して検索できます。">
+  <link rel="stylesheet" href="styles/site.css">
+  <!-- Pagefind 既定 UI(索引はデプロイ時に npx pagefind が /pagefind/ に生成する) -->
+  <link href="/pagefind/pagefind-ui.css" rel="stylesheet">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="検索 | maijun の技術質問ノート">
+  <meta property="og:description" content="maijun の技術質問ノートの全文検索。AWS / OCI / その他の記事本文を横断して検索できます。">
+  <meta property="og:url" content="https://notes.maijun.net/search.html">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=%E6%A4%9C%E7%B4%A2">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="index.html">maijun の技術質問ノート</a>
+    <nav><a href="search.html">検索</a></nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>記事を検索</h1>
+      <p>記事本文を横断して全文検索します(検索索引はデプロイ時に Pagefind で生成されます)。</p>
+    </section>
+
+    <div id="search"></div>
+    <noscript>
+      <p class="notice">検索には JavaScript が必要です。
+        <a href="index.html">トップページ</a>から記事一覧をご覧ください。</p>
+    </noscript>
+
+    <a class="back-link" href="index.html">← 目次に戻る</a>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+
+  <script src="/pagefind/pagefind-ui.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      // PagefindUI の初期化(API は pagefind.app の最新ドキュメントで確認済み)
+      new PagefindUI({ element: '#search', showSubResults: true });
+    });
+  </script>
+</body>
+</html>

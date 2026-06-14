@@ -25,9 +25,42 @@ docs/ogp-image.md       # OGP 生成の設計・デプロイ・再生成手順
 package.json            # ローカルのバンドル用ツール定義(devDependencies のみ)
 ```
 
-記事本体は **ビルド不要の静的 HTML** です。OGP 画像だけ Cloudflare Pages Functions で
-動的生成しますが、`functions/og.js` は事前バンドル済みのため **Cloudflare 側のビルド設定は不要**
-(ビルドコマンドは空欄のまま)です。詳細は [docs/ogp-image.md](docs/ogp-image.md) を参照。
+記事本体は **静的 HTML のまま**です。OGP 画像は Cloudflare Pages Functions
+(`functions/og.js`・事前バンドル済み)で動的生成します。**検索索引のみ**デプロイ時に
+[Pagefind](https://pagefind.app) で生成します(`/pagefind/` は生成物のためコミットしません)。
+詳細は [docs/ogp-image.md](docs/ogp-image.md) を参照。
+
+## 検索(Pagefind)
+
+全文検索は [Pagefind](https://pagefind.app) を使い、ビルド済みの HTML を直接索引します
+(`notes.json` には依存しません)。索引対象は各記事の `<main data-pagefind-body>` 内のみで、
+index / カテゴリ / 検索ページは索引から除外されます。検索 UI は `search.html` にあり、
+全ページのヘッダ「検索」リンクから開けます。
+
+`npx` で実行する Pagefind は extended 版で、日本語(CJK)のトークナイズに対応します
+(各ページに `<html lang="ja">` が必要)。
+
+### Cloudflare Pages のビルド設定(ダッシュボードで人間が設定する)
+
+検索を有効にするには、Cloudflare Pages のプロジェクト設定を次のように変更します。
+
+- **Build command**: `npx -y pagefind --site . --glob "{aws,oci,misc}/**/*.html"`
+- **Build output directory**: `/`(変更なし)
+
+> これまで Build command は空欄でしたが、検索索引生成のため上記コマンドを設定します。
+> `functions/og.js` は事前バンドル済みのため、このビルドでは追加の処理は不要です。
+>
+> `--glob` は索引対象を記事ディレクトリ(aws / oci / misc)に限定し、プレースホルダの
+> `_template/article.html` を索引から除外するためのものです。記事は必ず
+> aws / oci / misc のいずれかに置く運用なので取りこぼしはありません。
+> (`--glob` を付けずに `npx -y pagefind --site .` としても動きますが、その場合は
+> テンプレートページも検索結果に出ます。)
+
+ローカルでの動作確認(索引生成 + プレビューサーバ起動):
+
+```bash
+npx -y pagefind --site . --glob "{aws,oci,misc}/**/*.html" --serve
+```
 
 ## セットアップ手順(初回のみ)
 
