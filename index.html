@@ -33,34 +33,43 @@
       本サイトの記事は AI(Claude)と一緒に作成した学習ログです。内容の正確性には配慮していますが、必ず各記事末尾の「参照」にある一次情報をご確認ください。
     </p>
 
-    <section class="category cat-aws">
-      <h2><span class="cat-mark">AWS</span>AWS</h2>
-      <ul class="entries">
-        <li><a class="entry" href="aws/sagemaker-model-loading-strategies.html"><span class="entry-title">SageMaker AI のモデルロード最適化 — 遅延ロード・シャーディング・量子化</span><span class="leader"></span><time datetime="2026-06-14">2026-06-14</time></a></li>
-        <li><a class="entry" href="aws/sagemaker-model-artifact-formats.html"><span class="entry-title">SageMaker のモデルアーティファクトはフレームワークごとにどう形式が違うのか</span><span class="leader"></span><time datetime="2026-06-14">2026-06-14</time></a></li>
-        <li><a class="entry" href="aws/lake-formation-s3-direct-file-access.html"><span class="entry-title">Lake Formation の新 S3 直接ファイルアクセス — SQL とファイルの権限を統合</span><span class="leader"></span><time datetime="2026-06-13">2026-06-13</time></a></li>
-        <li><a class="entry" href="aws/vpc-endpoint-gateway-vs-interface.html"><span class="entry-title">VPC エンドポイント Gateway 型と Interface 型の違い</span><span class="leader"></span><time datetime="2026-06-12">2026-06-12</time></a></li>
-        <li><a class="entry" href="aws/kms-key-policy-default.html"><span class="entry-title">KMS キーポリシーの「デフォルトキーポリシー」は何を許可しているのか</span><span class="leader"></span><time datetime="2026-06-13">2026-06-13</time></a></li>
-      </ul>
+    <!-- 新着: notes.json を date 降順で先頭 5 件のみ JS でレンダリングする -->
+    <section class="category recent">
+      <h2><span class="cat-mark" style="background: var(--accent)">NEW</span>新着</h2>
+      <ul class="entries" id="recent"></ul>
+      <noscript>
+        <p class="notice">新着一覧の表示には JavaScript が必要です。各カテゴリの全記事は
+          <a href="aws.html">AWS</a> / <a href="oci.html">OCI</a> /
+          <a href="misc.html">その他</a> の各ページからご覧いただけます。</p>
+      </noscript>
     </section>
 
-    <section class="category cat-oci">
-      <h2><span class="cat-mark">OCI</span>Oracle Cloud Infrastructure</h2>
+    <!-- カテゴリ別ページへの導線 -->
+    <section class="category">
+      <h2><span class="cat-mark" style="background: var(--accent)">CAT</span>カテゴリから探す</h2>
       <ul class="entries">
-        <li><a class="entry" href="oci/cloud-guard-vs-security-zones.html"><span class="entry-title">OCI の Cloud Guard と Security Zones の違いは?</span><span class="leader"></span><time datetime="2026-06-13">2026-06-13</time></a></li>
-        <li><a class="entry" href="oci/exadata-cc-oci-connect.html"><span class="entry-title">Exadata Cloud@Customer がオンプレミスにあるのに VCN と接続できる理由</span><span class="leader"></span><time datetime="2026-06-12">2026-06-12</time></a></li>
-        <!-- 新しい記事をこの直下に追加(新しい記事が上) -->
-      </ul>
-    </section>
-
-    <section class="category cat-misc">
-      <h2><span class="cat-mark">MISC</span>その他</h2>
-      <ul class="entries">
-        <!-- 新しい記事をこの直下に追加(新しい記事が上) -->
-        <li><a class="entry" href="misc/claude-skills-instruction-following.html"><span class="entry-title">なぜ Claude の Skills は指示を忠実に守って実行できるのか</span><span class="leader"></span><time datetime="2026-06-13">2026-06-13</time></a></li>
+        <li><a class="entry" href="aws.html"><span class="entry-title">AWS の記事をすべて見る →</span><span class="leader"></span></a></li>
+        <li><a class="entry" href="oci.html"><span class="entry-title">OCI の記事をすべて見る →</span><span class="leader"></span></a></li>
+        <li><a class="entry" href="misc.html"><span class="entry-title">その他の記事をすべて見る →</span><span class="leader"></span></a></li>
       </ul>
     </section>
   </main>
+
+  <script>
+    // 一覧/ナビは notes.json を単一の真実源とする(全文検索は Pagefind が別途担当)
+    fetch('/notes.json')
+      .then(r => r.json())
+      .then(notes => {
+        const recent = [...notes].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+        document.getElementById('recent').innerHTML = recent.map(n =>
+          `<li><a class="entry" href="/${n.path}"><span class="entry-title">${n.title}</span><span class="leader"></span><time datetime="${n.date}">${n.date}</time></a></li>`
+        ).join('');
+      })
+      .catch(() => {
+        document.getElementById('recent').innerHTML =
+          '<li class="notice">記事一覧を読み込めませんでした。各カテゴリページからご覧ください。</li>';
+      });
+  </script>
 
   <footer class="site-footer">
     <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>

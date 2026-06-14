@@ -1,0 +1,66 @@
+[
+  {
+    "title": "SageMaker AI のモデルロード最適化 — 遅延ロード・シャーディング・量子化",
+    "category": "aws",
+    "path": "aws/sagemaker-model-loading-strategies.html",
+    "date": "2026-06-14",
+    "summary": "大規模モデルは「メモリに収める=シャーディング/量子化」「速く起動する=遅延ロード」という役割分担で整理でき、多くは LMI コンテナと Inference Optimization Toolkit で利用できます。",
+    "tags": ["SageMaker", "LLM", "量子化", "シャーディング"]
+  },
+  {
+    "title": "SageMaker のモデルアーティファクトはフレームワークごとにどう形式が違うのか",
+    "category": "aws",
+    "path": "aws/sagemaker-model-artifact-formats.html",
+    "date": "2026-06-14",
+    "summary": "model.tar.gz の外側(tar+gzip)は共通ですが、中身は XGBoost=UBJSON・PyTorch=pickle・TensorFlow=Protobuf・Hugging Face=safetensors と系統が分かれます。",
+    "tags": ["SageMaker", "model.tar.gz", "safetensors", "ONNX"]
+  },
+  {
+    "title": "Lake Formation の新 S3 直接ファイルアクセス — SQL とファイルの権限を統合",
+    "category": "aws",
+    "path": "aws/lake-formation-s3-direct-file-access.html",
+    "date": "2026-06-13",
+    "summary": "Lake Formation のテーブル権限に基づき一時的なスコープ付き S3 認証情報を取得でき、SQL クエリとファイルレベルアクセスを単一の権限セットで管理できます。",
+    "tags": ["Lake Formation", "S3", "IAM"]
+  },
+  {
+    "title": "KMS キーポリシーの「デフォルトキーポリシー」は何を許可しているのか",
+    "category": "aws",
+    "path": "aws/kms-key-policy-default.html",
+    "date": "2026-06-13",
+    "summary": "キーポリシー未指定で KMS キーを作ると root プリンシパルに kms:* を許可する 1 ステートメントだけが付き、IAM でのアクセス制御を有効化することが目的です。",
+    "tags": ["KMS", "IAM", "キーポリシー"]
+  },
+  {
+    "title": "VPC エンドポイント Gateway 型と Interface 型の違い",
+    "category": "aws",
+    "path": "aws/vpc-endpoint-gateway-vs-interface.html",
+    "date": "2026-06-12",
+    "summary": "Gateway 型は S3/DynamoDB 専用でルートテーブル方式・追加料金なし、Interface 型は PrivateLink で ENI を作りオンプレや他 VPC からも到達できますが料金が発生します。",
+    "tags": ["VPC", "PrivateLink", "VPC Endpoint"]
+  },
+  {
+    "title": "OCI の Cloud Guard と Security Zones の違いは?",
+    "category": "oci",
+    "path": "oci/cloud-guard-vs-security-zones.html",
+    "date": "2026-06-13",
+    "summary": "Cloud Guard は「検知(Detective)」、Security Zones は「予防(作成・変更時のブロック)」と役割が分かれ、内部で Cloud Guard を使うため両者の併用が Oracle 推奨です。",
+    "tags": ["Cloud Guard", "Security Zones", "Security"]
+  },
+  {
+    "title": "Exadata Cloud@Customer がオンプレミスにあるのに VCN と接続できる理由",
+    "category": "oci",
+    "path": "oci/exadata-cc-oci-connect.html",
+    "date": "2026-06-12",
+    "summary": "コントロールプレーン(CPS の HTTPS トンネル)とデータプレーン(VCN への VNIC 所属)の 2 系統で OCI と接続し、SQL やデータ自体はオンプレミスを出ません。",
+    "tags": ["Exadata", "Cloud@Customer", "VCN"]
+  },
+  {
+    "title": "なぜ Claude の Skills は指示を忠実に守って実行できるのか",
+    "category": "misc",
+    "path": "misc/claude-skills-instruction-following.html",
+    "date": "2026-06-13",
+    "summary": "Progressive Disclosure で「いま必要な Skill 本文だけ」を都度読み込み、ゆらぎを許さない処理はスクリプトに任せて分離しているため、指示を忠実に守れます。",
+    "tags": ["Claude", "Skills", "Progressive Disclosure"]
+  }
+]
