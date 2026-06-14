@@ -1,5 +1,13 @@
 [
   {
+    "title": "Amazon Bedrock Agents と AgentCore は別物? 役割の違いと使い分け",
+    "category": "aws",
+    "path": "aws/bedrock-agents-vs-agentcore.html",
+    "date": "2026-06-14",
+    "summary": "Bedrock Agents は構成ベースのフルマネージドなエージェント機能、AgentCore は任意のフレームワーク/モデルで作ったエージェントを運用するモジュール型インフラ基盤で、別物かつ併用可能です。",
+    "tags": ["Bedrock", "AgentCore", "AI Agent", "生成AI"]
+  },
+  {
     "title": "SageMaker AI のモデルロード最適化 — 遅延ロード・シャーディング・量子化",
     "category": "aws",
     "path": "aws/sagemaker-model-loading-strategies.html",
