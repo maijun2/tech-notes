@@ -22,3 +22,6 @@ Thumbs.db
 
 # Node 等(本リポジトリはビルド不要のため不要物)
 node_modules/
+
+# Pagefind の検索索引(デプロイ時に npx pagefind が生成する成果物・コミットしない)
+/pagefind/
