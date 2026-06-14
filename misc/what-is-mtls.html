@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mTLS(相互 TLS 認証)とは何か | maijun の技術質問ノート</title>
+  <meta name="description" content="mTLS はクライアントとサーバの双方が X.509 証明書を提示して相互に認証する TLS の使い方で、サービス間通信のゼロトラスト化に使われます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="mTLS(相互 TLS 認証)とは何か">
+  <meta property="og:description" content="mTLS はクライアントとサーバの双方が X.509 証明書を提示して相互に認証する TLS の使い方で、サービス間通信のゼロトラスト化に使われます。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/what-is-mtls">
+  <meta property="og:url" content="https://notes.maijun.net/misc/what-is-mtls">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=mTLS(%E7%9B%B8%E4%BA%92%20TLS%20%E8%AA%8D%E8%A8%BC)%E3%81%A8%E3%81%AF%E4%BD%95%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-06-14">2026-06-14</time>
+      </p>
+      <h1>mTLS(相互 TLS 認証)とは何か</h1>
+
+      <div class="lead">
+        <p>mTLS(mutual TLS / 相互 TLS 認証)は、通常の TLS ではサーバだけが証明書を提示するのに対し、<strong>クライアントとサーバの双方が X.509 証明書を提示し、互いに相手の身元を検証する</strong>使い方です。サーバが「相手が誰か」を暗号的に確認できるため、パスワードや API キーに頼らないサービス間認証(ゼロトラスト)の基盤として使われます。プロトコルとしては TLS そのもの(TLS 1.3 = RFC 8446)で、双方向認証を有効にした構成を指す呼び方です。</p>
+      </div>
+
+      <h2>通常の TLS との違い</h2>
+      <p>HTTPS で使う通常の TLS は <strong>片方向認証(one-way authentication)</strong>です。クライアント(ブラウザ)はサーバ証明書を検証して「接続先が本物のサーバか」を確認しますが、サーバ側はクライアントが誰かを TLS では確認しません。クライアントの認証はその後の HTTP レイヤ(ログイン ID/パスワード、Cookie、Bearer トークンなど)で別途行います。</p>
+      <p>mTLS では、ここにクライアント証明書による検証を加えます。サーバは TLS ハンドシェイク中にクライアントへ証明書の提示を要求し、クライアントが提示した証明書が信頼する CA(認証局)で署名されているか、かつクライアントが対応する秘密鍵を持っているか(=その証明書の正当な持ち主か)を検証します。両者がそれぞれ相手を検証するため「相互(mutual)」と呼びます。</p>
+
+      <h2>ハンドシェイクで何が起きるか</h2>
+      <p>TLS 1.3 では、サーバが <code>CertificateRequest</code> メッセージを送ることでクライアント認証を要求します(RFC 8446 §4.3.2)。要求を受けたクライアントは <code>Certificate</code> と <code>CertificateVerify</code> を返し、後者でハンドシェイクの記録に対する署名を提示することで秘密鍵の所持を証明します。流れを簡略化すると次のとおりです。</p>
+
+      <svg viewBox="0 0 640 250" role="img" aria-label="mTLS ハンドシェイクの概略図" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff">
+        <text x="90" y="28" text-anchor="middle" font-size="15" font-weight="bold">Client</text>
+        <text x="550" y="28" text-anchor="middle" font-size="15" font-weight="bold">Server</text>
+        <line x1="90" y1="40" x2="90" y2="235" stroke="#bbb" stroke-width="2"/>
+        <line x1="550" y1="40" x2="550" y2="235" stroke="#bbb" stroke-width="2"/>
+
+        <text x="320" y="62" text-anchor="middle" font-size="12">① ClientHello →</text>
+        <line x1="90" y1="68" x2="550" y2="68" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+
+        <text x="320" y="92" text-anchor="middle" font-size="12">② ServerHello / サーバ証明書 / CertificateRequest</text>
+        <line x1="550" y1="98" x2="90" y2="98" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+
+        <text x="320" y="128" text-anchor="middle" font-size="12">クライアントは</text>
+        <text x="320" y="144" text-anchor="middle" font-size="12">サーバ証明書を CA で検証</text>
+
+        <text x="320" y="174" text-anchor="middle" font-size="12">③ クライアント証明書 / CertificateVerify →</text>
+        <line x1="90" y1="180" x2="550" y2="180" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+
+        <text x="320" y="208" text-anchor="middle" font-size="12">サーバはクライアント証明書を CA で検証</text>
+        <text x="320" y="228" text-anchor="middle" font-size="12">④ 双方検証 OK → 暗号化通信を確立</text>
+
+        <defs>
+          <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 Z" fill="#555"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <p>双方の証明書検証が成功して初めてセッションが確立します。どちらかの証明書が信頼できない、失効している、秘密鍵を証明できない場合はハンドシェイクが失敗し、アプリケーションのデータは一切流れません。認証が「アプリより前」のトランスポート層で済む点が mTLS の特徴です。</p>
+
+      <h2>主な用途</h2>
+      <ul>
+        <li><strong>サービス間(machine-to-machine)認証</strong>: マイクロサービスや API 間の通信で、相手サービスの身元を証明書で確認する。人間のログインがない経路に向く。</li>
+        <li><strong>ゼロトラストネットワーク</strong>: 「ネットワーク内だから信頼する」をやめ、通信ごとに相互認証する。サービスメッシュ(Istio / Linkerd など)はサイドカー間を自動で mTLS 化する。</li>
+        <li><strong>OAuth 2.0 のクライアント認証</strong>: RFC 8705 は mTLS をクライアント認証手段として標準化し、アクセストークンを証明書に紐付ける(certificate-bound token)ことでトークン漏洩時の不正利用を防ぐ。</li>
+        <li><strong>IoT デバイス認証</strong>: デバイスごとに証明書を配布し、各デバイスを個別に認証する。</li>
+      </ul>
+
+      <h2>導入時の注意点</h2>
+      <p>mTLS はクライアント証明書という「もう一つの PKI」を運用する必要があります。具体的には次のコストが増えます。</p>
+      <ul>
+        <li><strong>証明書の発行・配布</strong>: クライアントごとに証明書と秘密鍵を安全に配布する仕組みが要る。</li>
+        <li><strong>ローテーションと失効</strong>: 有効期限切れによる通信断を避ける更新運用と、漏洩時の失効(CRL / OCSP)の手当てが必要。</li>
+        <li><strong>CA の信頼設計</strong>: クライアント検証用に専用の内部 CA を立てるなど、サーバ証明書とは別の信頼チェーンを設計することが多い。</li>
+      </ul>
+      <p>このため mTLS は「ブラウザ越しの一般ユーザ認証」よりも、証明書を配れる閉じた相手(自社サービス間、登録済みクライアント、IoT デバイス)に向いています。サービスメッシュやマネージドな仕組みを使うと、証明書のローテーションを自動化でき運用負荷を下げられます。</p>
+
+      <pre><code># 例: openssl でサーバへ mTLS 接続し、クライアント証明書を提示する
+openssl s_client -connect api.example.com:443 \
+  -cert client.crt -key client.key -CAfile ca.crt
+
+# 例: curl でクライアント証明書を付けてリクエストする
+curl --cert client.crt --key client.key --cacert ca.crt \
+  https://api.example.com/health</code></pre>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://datatracker.ietf.org/doc/html/rfc8446" rel="noopener">RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3(§4.3.2 Certificate Request)</a></li>
+          <li><a href="https://datatracker.ietf.org/doc/html/rfc8705" rel="noopener">RFC 8705 - OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens</a></li>
+          <li><a href="https://www.rfc-editor.org/rfc/rfc5246#section-7.4.6" rel="noopener">RFC 5246 - TLS 1.2(§7.4.6 Client Certificate / 双方向認証の歴史的記述)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

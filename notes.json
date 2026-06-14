@@ -1,5 +1,13 @@
 [
   {
+    "title": "mTLS(相互 TLS 認証)とは何か",
+    "category": "misc",
+    "path": "misc/what-is-mtls.html",
+    "date": "2026-06-14",
+    "summary": "mTLS はクライアントとサーバの双方が X.509 証明書を提示して互いの身元を検証する TLS の使い方で、パスワードに頼らないサービス間認証(ゼロトラスト)の基盤になります。",
+    "tags": ["mTLS", "TLS", "ゼロトラスト", "証明書"]
+  },
+  {
     "title": "OCI プライベート DNS のビュー・ゾーン・リゾルバ三層構造",
     "category": "oci",
     "path": "oci/oci-private-dns-view-zone-resolver.html",
