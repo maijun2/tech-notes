@@ -21,24 +21,36 @@ SNS クローラ
 PNG (image/png, 1 日キャッシュ)
 ```
 
-- **satori**(`satori`)… HTML/CSS 風のツリーを SVG に変換。`functions/og.js` の `ogTree()` がレイアウト。
-- **resvg-wasm**(`@resvg/resvg-wasm`)… SVG を PNG にラスタライズ。WASM はバンドルに `import` で取り込む。
+- **satori**(`satori`)… HTML/CSS 風のツリーを SVG に変換。`tools/og.src.js` の `ogTree()` がレイアウト。
+- **resvg-wasm**(`@resvg/resvg-wasm`)… SVG を PNG にラスタライズ。
 - **`process` shim** … satori はモジュール評価時に `process` を参照します。Workers ランタイムには
-  `process` グローバルが無いため、`functions/og.js` の冒頭で `globalThis.process ??= { env: {} }` を
-  入れてから satori を**動的 import** しています。これによりダッシュボードでの互換フラグ設定が不要になります
-  (代替として Settings → Functions → Compatibility flags に `nodejs_compat` を追加する方法もあります)。
-- **日本語フォント** … `assets/og/noto-sans-jp-bold-subset.otf`(Noto Sans JP Bold のサブセット, OFL-1.1)。
-  Worker バンドルには入れず、静的アセットとして実行時に `fetch` し、isolate 内でキャッシュします。
-  - サブセット範囲: ASCII / Latin-1 / かな / 各種記号・約物 / 全角半角形 / CJK 統合漢字(U+4E00–U+9FFF)。
-    日常的な日本語の技術記事タイトルはほぼ網羅しますが、範囲外の漢字・絵文字は欠ける(豆腐になる)ことがあります。
+  `process` グローバルが無いため、バンドルの先頭(banner)で `globalThis.process||={env:{}}` を定義しています。
+
+### 重要: `functions/og.js` は「事前バンドル済み」の自己完結ファイルです
+
+`functions/og.js` は **esbuild で satori と resvg のJSグルーをインライン展開した生成物**です。
+外部 import を一切持たないため、**Cloudflare 側で `npm install` が不要**で、
+**ビルドコマンドを空欄のまま**にできます(= 既存の静的サイト運用を変えない)。
+
+- **WASM とフォントは Worker バンドルに含めず、静的アセットとして実行時に `fetch`** します
+  (`/assets/og/resvg.wasm`, `/assets/og/noto-sans-jp-bold-subset.otf`)。isolate 内でキャッシュ。
+  → Worker バンドルは約 0.85 MB に収まり、Free プランのサイズ上限にも余裕があります。
+- フォントのサブセット範囲: ASCII / Latin-1 / かな / 各種記号・約物 / 全角半角形 / CJK 統合漢字(U+4E00–U+9FFF)。
+  日常的な日本語の技術記事タイトルはほぼ網羅しますが、範囲外の漢字・絵文字は欠ける(豆腐になる)ことがあります。
+
+> なぜ事前バンドルか: ビルドコマンドが空欄だと Cloudflare Pages は依存をインストールせず
+> (`No build command specified. Skipping build step.`)、`satori` 等の bare import を解決できずに
+> Functions のバンドルが失敗します。事前バンドルしておけば、その経路を完全に回避できます。
 
 ## ファイル構成
 
 ```
-functions/og.js                        # /og エンドポイント本体
+functions/og.js                        # /og エンドポイント本体(esbuild 生成物・自己完結)
+tools/og.src.js                        # ↑ の元ソース(これを編集して再バンドルする)
+assets/og/resvg.wasm                   # resvg WASM(静的アセット, 約 2.5 MB)
 assets/og/noto-sans-jp-bold-subset.otf # 日本語フォント(静的アセット, 約 3.8 MB)
 assets/og/NOTO-SANS-JP-LICENSE.md      # フォントの OFL-1.1 ライセンス
-package.json / package-lock.json       # satori / @resvg/resvg-wasm の依存定義
+package.json / package-lock.json       # ローカルのバンドル用ツール定義(devDependencies のみ)
 ```
 
 ## 各ページへの埋め込み
@@ -64,30 +76,30 @@ package.json / package-lock.json       # satori / @resvg/resvg-wasm の依存定
 ## ローカル動作確認(wrangler pages dev)
 
 ```bash
-# 依存をインストール(node_modules は .gitignore 済み)
+# バンドル用ツールをインストール(node_modules は .gitignore 済み)
 npm install
 
 # ローカルで Pages(静的 + Functions)を起動
 #  ※ compatibility-date は当日以前の日付を指定する(未指定だと警告が出る)
-npx wrangler pages dev . --compatibility-date=2025-07-18
+npm run dev          # = wrangler pages dev . --compatibility-date=2025-07-18
 
 # 別ターミナルで確認(PNG が返ればOK)
 curl -s "http://localhost:8788/og?title=テスト記事のタイトル" -o og-test.png
 file og-test.png   # → PNG image data, 1200 x 630
 ```
 
-`wrangler pages dev .` は静的ファイル(`assets/og/*.otf` を含む)も配信するため、
-フォント取得もローカルで再現できます。
+`wrangler pages dev .` は静的ファイル(`assets/og/*` を含む)も配信するため、
+WASM・フォント取得もローカルで再現できます。
 
 ## デプロイ
 
 このサイトは **GitHub 連携の Pages 自動ビルド** で運用しています(README 参照)。
-通常は **`main` に merge されれば自動デプロイ**されます。Pages は `package.json` を検出すると
-自動で依存をインストールし、`functions/` を Functions としてバンドルします。
+**`main` に merge すれば自動デプロイ**されます。`functions/og.js` は事前バンドル済みの
+自己完結ファイルなので、Cloudflare 側での `npm install` もビルドコマンドも不要です。
 
 ```
 note/<slug> ブランチで PR → レビュー → main に merge
-        → Cloudflare Pages が自動で npm install + functions バンドル + デプロイ
+        → Cloudflare Pages が functions/og.js と静的アセットをそのまま配信(install 不要)
 ```
 
 手動でデプロイする場合(任意):
@@ -96,23 +108,40 @@ note/<slug> ブランチで PR → レビュー → main に merge
 npx wrangler pages deploy .
 ```
 
-## Cloudflare Pages の設定
+## Cloudflare Pages の設定(変更不要)
 
-GitHub 連携プロジェクトのままで動きます。確認/変更が要るのは次の点だけです。
+GitHub 連携プロジェクトの設定は **そのままで動きます**。
 
 | 項目 | 値 | 補足 |
 | --- | --- | --- |
-| Build command | 空欄のまま | `package.json` があれば依存は自動インストールされる |
+| Build command | **空欄のまま** | 事前バンドル済みのため install 不要。空欄が正しい |
 | Build output directory | `/`(リポジトリルート) | 変更不要 |
-| Node 互換 | 不要(コード内で `process` を shim 済み) | satori の `process` 参照はコードで吸収済み。もし他の依存で `process is not defined` が出たら Settings → Functions → Compatibility flags に `nodejs_compat` を追加 |
+| Node 互換フラグ | 不要 | `process` は banner で shim 済み |
 
-> **Worker サイズ上限に注意**: resvg の WASM(約 2.5 MB)をバンドルに含めます。
-> Free プラン(gzip 後 3 MB)で上限に当たる場合は、WASM も `assets/og/` に置いて
-> 実行時 `fetch` + `initWasm(response)` する方式に切り替えてください(フォントと同じ手法)。
+> ⚠️ **ビルドコマンドを設定しないこと**。`npm install` 等を設定すると、出力ディレクトリが
+> リポジトリルート(`/`)のため `node_modules` がアセットとしてアップロードされ得ます。
+> 事前バンドル方式ではそもそも install 自体が不要です。
+
+## Function(`functions/og.js`)の再生成
+
+レイアウトや色を変えるときは **`tools/og.src.js` を編集** し、再バンドルします
+(`functions/og.js` を直接編集しないこと)。
+
+```bash
+npm install        # 初回のみ(esbuild / satori / @resvg/resvg-wasm を devDeps として取得)
+npm run build:og   # tools/og.src.js -> functions/og.js を再生成
+```
+
+resvg の WASM を更新する場合は、`@resvg/resvg-wasm` の `index_bg.wasm` を
+`assets/og/resvg.wasm` に上書きコピーします。
+
+```bash
+cp node_modules/@resvg/resvg-wasm/index_bg.wasm assets/og/resvg.wasm
+```
 
 ## フォントサブセットの再生成
 
-カバー範囲を変えたい場合の再生成手順(リポジトリにスクリプトは置かず、ローカルの作業ディレクトリで実行):
+カバー範囲を変えたい場合の再生成手順(ローカルの作業ディレクトリで実行):
 
 ```bash
 # 1) 元フォント(Noto Sans JP Bold, OFL-1.1)を取得
@@ -137,10 +166,11 @@ cp noto-sans-jp-bold-subset.otf <repo>/assets/og/noto-sans-jp-bold-subset.otf
 
 ## トラブルシュート
 
+- **ビルドが `Could not resolve "satori"` 等で失敗** … `functions/og.js` を直接編集して
+  bare import を持ち込んでいないか確認。必ず `tools/og.src.js` を編集して `npm run build:og` で再生成する。
 - **404 /og** … `functions/og.js` が deploy に含まれているか、Build output が `/` か確認。
-- **500 font fetch failed** … `assets/og/noto-sans-jp-bold-subset.otf` が配信されているか
-  (`https://notes.maijun.net/assets/og/noto-sans-jp-bold-subset.otf` に直接アクセス)。
+- **500 wasm fetch failed** … `https://notes.maijun.net/assets/og/resvg.wasm` に直接アクセスして 200 か確認。
+- **500 font fetch failed** … `https://notes.maijun.net/assets/og/noto-sans-jp-bold-subset.otf` が配信されているか確認。
 - **文字化け(豆腐)** … サブセット範囲外の文字。上記手順で範囲を広げて再生成する。
-- **Worker too large** … 上記「Worker サイズ上限」を参照(WASM を静的アセット化)。
 - **OGP が更新されない** … X / Facebook 等はカードをキャッシュする。各社のデバッガ
   (X: Post Inspector, Facebook: Sharing Debugger)で再取得する。
