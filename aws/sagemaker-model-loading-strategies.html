@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SageMaker AI のモデルロード最適化 — 遅延ロード・シャーディング・量子化 | maijun の技術質問ノート</title>
+  <meta name="description" content="SageMaker AI で大規模モデルのメモリ使用量と起動時間を最適化する 3 つの戦略 — 遅延ロード、モデルシャーディング、量子化の仕組みと使い分けを整理します。">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="https://maijun.net" rel="me">maijun.net</a></nav>
+  </header>
+
+  <main>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time datetime="2026-06-14">2026-06-14</time>
+      </p>
+      <h1>SageMaker AI のモデルロード最適化 — 遅延ロード・シャーディング・量子化</h1>
+
+      <div class="lead">
+        <p>SageMaker AI で大規模モデル(LLM)を載せるときは、<strong>「メモリに収める」=シャーディングと量子化</strong>、<strong>「速く起動する」=遅延ロード(と Fast Model Loading)</strong>という役割分担で考えると整理しやすいです。<strong>シャーディング</strong>は 1 枚の GPU に収まらないモデルを複数 GPU に分割し、<strong>量子化</strong>は重みを低精度(INT4 等)に変換してメモリ自体を縮小、<strong>遅延ロード</strong>はコンテナイメージやモデル重みを「必要な分だけ・直接 GPU へ」運ぶことでコールドスタートを短縮します。多くは LMI(Large Model Inference)コンテナと Inference Optimization Toolkit で no-code または少量設定で利用できます。</p>
+      </div>
+
+      <h2>前提:SageMaker のモデルロードは 4 ステップ</h2>
+      <p>なぜ起動が遅く、メモリを食うのかは、ロードの流れを知ると見通せます。SageMaker AI が推論エンドポイントを立ち上げるとき、モデルは概ね次の順で GPU に載ります。</p>
+
+      <svg viewBox="0 0 720 150" role="img" aria-label="モデルロードの 4 ステップ:S3 ダウンロード、ホストメモリへロード、ホスト上でシャーディング、GPU へ配置" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;margin:1rem 0">
+        <style>
+          .box{fill:#fff;stroke:#3676c4;stroke-width:1.5}
+          .lbl{font-family:sans-serif;font-size:12px;fill:#1a1a1a}
+          .sub{font-family:sans-serif;font-size:10px;fill:#666}
+          .arr{stroke:#999;stroke-width:1.5;fill:none;marker-end:url(#ah)}
+        </style>
+        <defs>
+          <marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#999"/></marker>
+        </defs>
+        <rect class="box" x="10"  y="40" width="150" height="60" rx="6"/>
+        <text class="lbl" x="85" y="65" text-anchor="middle">1. S3 から</text>
+        <text class="lbl" x="85" y="82" text-anchor="middle">ダウンロード</text>
+        <rect class="box" x="190" y="40" width="150" height="60" rx="6"/>
+        <text class="lbl" x="265" y="65" text-anchor="middle">2. ホストメモリ</text>
+        <text class="lbl" x="265" y="82" text-anchor="middle">へロード</text>
+        <rect class="box" x="370" y="40" width="150" height="60" rx="6"/>
+        <text class="lbl" x="445" y="65" text-anchor="middle">3. ホスト上で</text>
+        <text class="lbl" x="445" y="82" text-anchor="middle">シャーディング</text>
+        <rect class="box" x="550" y="40" width="160" height="60" rx="6"/>
+        <text class="lbl" x="630" y="65" text-anchor="middle">4. シャードを</text>
+        <text class="lbl" x="630" y="82" text-anchor="middle">各 GPU へ配置</text>
+        <line class="arr" x1="160" y1="70" x2="188" y2="70"/>
+        <line class="arr" x1="340" y1="70" x2="368" y2="70"/>
+        <line class="arr" x1="520" y1="70" x2="548" y2="70"/>
+        <text class="sub" x="360" y="125" text-anchor="middle">遅延ロード / Fast Model Loading は、この 2〜4 の「遠回り」を省いてコールドスタートを短縮する</text>
+      </svg>
+
+      <p>大規模モデルでは各ステップが重く、特に「ホストメモリへ全部展開してからシャーディング」が時間と RAM を消費します。以下の 3 戦略は、それぞれ別の場所に効きます。</p>
+
+      <h2>1. 遅延ロード(Lazy Loading) — 起動時間を縮める</h2>
+      <p>遅延ロードは「全部を一度にロードしない」発想です。SageMaker 周辺では主に 2 つの文脈で登場します。</p>
+
+      <h3>コンテナイメージの遅延ロード(SOCI)</h3>
+      <p>SageMaker Studio などでは <strong>SOCI(Seekable OCI)</strong> インデックスにより、コンテナイメージ全体のダウンロードを待たずに、<strong>起動に必要な部分だけを先に取得</strong>してコンテナを立ち上げられます。GB 級の ML イメージほどコールドスタート短縮の効果が大きくなります。関連して、オートスケール時のスケールアウトを速める <strong>Container Caching</strong> もあり、よく使うコンテナイメージをノード上にキャッシュして再ダウンロードを避けます。</p>
+
+      <h3>モデル重みの遅延ロード / Fast Model Loading(Weight Streaming)</h3>
+      <p>モデル本体側では、<strong>Fast Model Loading</strong> が「ホストメモリへの全展開 → シャーディング」という遠回りを省き、<strong>S3 から GPU へ重みを直接ストリーミング</strong>します。前掲図の 2〜4 を圧縮するイメージです。Inference Optimization Toolkit で最適化した一部モデル(Llama 系など)で利用でき、巨大モデルのコールドスタートを大幅に短縮できます。</p>
+      <p>また量子化の処理自体でも遅延ロードが使われ、<strong>Transformer ブロックを 1 つずつディスクから読み込み</strong>、GPU 上で量子化が終わったら即座に CPU へオフロードすることで、量子化中の GPU メモリピークを抑えます。</p>
+
+      <h2>2. モデルシャーディング(Tensor Parallelism) — メモリに「収める」</h2>
+      <p>1 枚の GPU の VRAM に収まらないモデルは、複数 GPU に分割(シャーディング)して載せます。SageMaker の <strong>LMI コンテナ</strong>は DeepSpeed / TensorRT-LLM / vLLM / Transformers-NeuronX といった分割フレームワークを内蔵しており、環境変数 <code>OPTION_TENSOR_PARALLEL_DEGREE</code> で使用 GPU 数(テンソル並列度)を指定するだけで分割できます。</p>
+
+      <pre><code># LMI コンテナの環境変数例(8 GPU に Tensor Parallel で分割)
+OPTION_MODEL_ID=meta-llama/Llama-3-70b
+OPTION_TENSOR_PARALLEL_DEGREE=8
+OPTION_ROLLING_BATCH=vllm</code></pre>
+
+      <p>分割方式には主に 2 種類あります。</p>
+      <ul>
+        <li><strong>Tensor Parallel(テンソル並列)</strong>: 各レイヤーの重み行列を GPU 間で横分割する。全 GPU が常に稼働するためハードウェア効率が高く、AWS は基本的にこちらを推奨しています。</li>
+        <li><strong>Pipeline Parallel(パイプライン並列)</strong>: レイヤー単位で GPU を分担する。GPU 間の待ち(バブル)が出やすく、単一ノードでは Tensor Parallel が有利です。</li>
+      </ul>
+
+      <h3>AOT(Ahead-of-Time)パーティショニング</h3>
+      <p>毎回の起動時にシャーディングすると遅いため、<strong>事前にモデルを分割(AOT パーティショニング)</strong>しておき、分割済みアーティファクトを S3 に保存しておく手法があります。エンドポイント起動時は「分割済みのものをそのまま配るだけ」になるため、起動時間を短縮できます。シャーディング(メモリ対策)が、結果的に起動時間最適化にもつながる例です。</p>
+
+      <h2>3. 量子化(Quantization) — メモリ使用量そのものを縮める</h2>
+      <p>量子化は、重みや活性化を <strong>FP16/BF16 → INT8/INT4</strong> などの低精度データ型で表現し、モデルのメモリフットプリントを物理的に小さくする手法です。これにより、より安価で入手しやすい(VRAM の小さい)GPU にモデルを載せられます。INT4 ならおおよそ重みサイズが 1/4 になります。</p>
+      <p>SageMaker の Inference Optimization Toolkit / LMI では、no-code または少量設定で主要な量子化手法を利用できます。</p>
+      <ul>
+        <li><strong>AWQ(Activation-aware Weight Quantization)</strong>: 活性化の分布を考慮した weight-only 量子化。INT4-AWQ が精度劣化を抑えつつ大幅にサイズ削減できる代表的手法。</li>
+        <li><strong>GPTQ</strong>: キャリブレーションデータを使う事後量子化(PTQ)。低ビット重みで高精度を狙う。</li>
+        <li><strong>SmoothQuant</strong>: 重みと活性化の両方を量子化(W8A8 等)し、活性化外れ値を重み側に「移す」ことで精度を保つ。</li>
+        <li><strong>FP8</strong>: 新しめの GPU(H100 等)が持つ FP8 を活かす量子化。</li>
+      </ul>
+      <p>量子化はメモリと帯域を減らすため <strong>スループット向上・コスト削減</strong>にも効きますが、低ビットほど精度が落ちうるため、用途に応じて手法とビット数を選び、評価することが重要です。</p>
+
+      <h2>3 戦略の使い分け(まとめ)</h2>
+      <ul>
+        <li><strong>メモリに収まらない</strong> → まず<strong>量子化</strong>でモデルを縮める。それでも 1 GPU に載らなければ<strong>シャーディング</strong>で複数 GPU に分割。</li>
+        <li><strong>起動が遅い / コールドスタートが痛い</strong> → <strong>遅延ロード(SOCI・Container Caching)</strong>でイメージを、<strong>Fast Model Loading</strong> や <strong>AOT パーティショニング</strong>で重みのロードを短縮。</li>
+        <li>これらは排他ではなく<strong>併用が前提</strong>です。例えば「INT4-AWQ で量子化 → Tensor Parallel で 2 GPU に分割 → Fast Model Loading で起動短縮」のように重ねます。</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-optimize.html" rel="noopener">Inference optimization for Amazon SageMaker AI models — Amazon SageMaker AI Developer Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/large-model-inference-container-docs.html" rel="noopener">The large model inference (LMI) container documentation — Amazon SageMaker AI Developer Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-optimize-create-job.html" rel="noopener">Create an inference optimization job — Amazon SageMaker AI Developer Guide</a></li>
+          <li><a href="https://aws.amazon.com/blogs/machine-learning/introducing-soci-indexing-for-amazon-sagemaker-studio-faster-container-startup-times-for-ai-ml-workloads/" rel="noopener">Introducing SOCI indexing for Amazon SageMaker Studio: Faster container startup times for AI/ML workloads — AWS ML Blog</a></li>
+          <li><a href="https://aws.amazon.com/blogs/machine-learning/supercharge-your-auto-scaling-for-generative-ai-inference-introducing-container-caching-in-sagemaker-inference/" rel="noopener">Introducing Container Caching in SageMaker Inference — AWS ML Blog</a></li>
+          <li><a href="https://aws.amazon.com/blogs/machine-learning/amazon-sagemaker-launches-the-updated-inference-optimization-toolkit-for-generative-ai/" rel="noopener">Amazon SageMaker launches the updated inference optimization toolkit for generative AI — AWS ML Blog</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../index.html">← 目次に戻る</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
