@@ -7,6 +7,19 @@
   <title>記事タイトル | maijun の技術質問ノート</title>
   <meta name="description" content="TODO: 結論を 1 文で要約">
   <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <!-- TODO: og:title と og:image の title= は H1(記事タイトル)と同じ文字列にする -->
+  <!-- TODO: og:image の title= は encodeURIComponent した値にする(例: 「 → %E3%80%8C) -->
+  <!-- TODO: og:url は https://notes.maijun.net/<category>/<slug>.html にする -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="記事タイトル">
+  <meta property="og:description" content="TODO: 結論を 1 文で要約">
+  <meta property="og:url" content="https://notes.maijun.net/misc/slug.html">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=%E8%A8%98%E4%BA%8B%E3%82%BF%E3%82%A4%E3%83%88%E3%83%AB">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
   <header class="site-header">

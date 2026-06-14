@@ -1,0 +1,17 @@
+{
+  "name": "tech-notes-functions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build tooling for notes.maijun.net OGP image Function. The deployed functions/og.js is pre-bundled and needs no install at deploy time.",
+  "scripts": {
+    "build:og": "esbuild tools/og.src.js --bundle --format=esm --target=es2022 --platform=browser --conditions=worker,browser --external:*.wasm --banner:js=\"globalThis.process||={env:{}};\" --outfile=functions/og.js",
+    "dev": "wrangler pages dev . --compatibility-date=2025-07-18"
+  },
+  "devDependencies": {
+    "@resvg/resvg-wasm": "2.6.2",
+    "esbuild": "^0.23.0",
+    "satori": "0.26.0",
+    "wrangler": "^3.0.0"
+  }
+}
