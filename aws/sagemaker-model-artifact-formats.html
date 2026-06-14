@@ -6,6 +6,16 @@
   <title>SageMaker のモデルアーティファクトはフレームワークごとにどう違うのか | maijun の技術質問ノート</title>
   <meta name="description" content="SageMaker AI が S3 に保存する model.tar.gz の中身は、XGBoost / PyTorch / TensorFlow などフレームワークごとにバイナリ形式が異なる。各形式の差異と使い分けを整理する。">
   <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="SageMaker のモデルアーティファクトはフレームワークごとにどう形式が違うのか">
+  <meta property="og:description" content="SageMaker AI が S3 に保存する model.tar.gz の中身は、XGBoost / PyTorch / TensorFlow などフレームワークごとにバイナリ形式が異なる。各形式の差異と使い分けを整理する。">
+  <meta property="og:url" content="https://notes.maijun.net/aws/sagemaker-model-artifact-formats.html">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=SageMaker%20%E3%81%AE%E3%83%A2%E3%83%87%E3%83%AB%E3%82%A2%E3%83%BC%E3%83%86%E3%82%A3%E3%83%95%E3%82%A1%E3%82%AF%E3%83%88%E3%81%AF%E3%83%95%E3%83%AC%E3%83%BC%E3%83%A0%E3%83%AF%E3%83%BC%E3%82%AF%E3%81%94%E3%81%A8%E3%81%AB%E3%81%A9%E3%81%86%E5%BD%A2%E5%BC%8F%E3%81%8C%E9%81%95%E3%81%86%E3%81%AE%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
   <header class="site-header">

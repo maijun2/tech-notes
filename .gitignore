@@ -1,6 +1,9 @@
 # 静的サイトに必要なファイル(HTML/CSS/SVG/画像/Markdown)以外は管理しない
 # 設定ファイル・データファイルの誤コミット防止
 *.json
+# 例外: Cloudflare Pages Functions(動的OGP生成)の依存管理に必要な JSON は追跡する
+!package.json
+!package-lock.json
 *.yaml
 *.yml
 *.env

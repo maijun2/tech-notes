@@ -29,6 +29,20 @@ description: ユーザーが「質問:」で始まる技術質問をしたとき
 - コード・コマンドは `<pre><code>` で囲む
 - CLAUDE.md の「絶対に守るルール」(秘匿情報禁止など)を遵守する
 
+### 2.5 OGP メタタグの設定(SNS カード用)
+
+テンプレートの `<head>` にある OGP ブロックの TODO を、記事の内容に合わせて埋める。
+
+- `og:title` … H1(記事タイトル)と**同じ文字列**にする
+- `og:description` … `<meta name="description">` と同じ結論 1 文にする
+- `og:url` … `https://notes.maijun.net/<category>/<slug>.html`
+- `og:image` … `https://notes.maijun.net/og?title=<H1 を encodeURIComponent した値>`
+  - 動的 OGP 画像生成エンドポイント(`functions/og.js`)がタイトル入り画像を返す
+  - エンコード例: `KMS キーポリシー` → `KMS%20%E3%82%AD%E3%83%BC%E3%83%9D%E3%83%AA%E3%82%B7%E3%83%BC`
+  - 半角スペースは `%20`、「 は `%E3%80%8C` など。手で書かず必ず encodeURIComponent 相当で生成する
+
+> 仕組みの詳細は `docs/ogp-image.md` を参照。
+
 ### 3. 目次の更新
 
 - `index.html` の該当カテゴリの `<ul class="entries">` の**先頭**に
@@ -56,5 +70,7 @@ git push -u origin note/<slug>
 - [ ] 参照 URL(一次情報)が末尾にあるか
 - [ ] 秘匿情報(アカウント ID、OCID、API キー、社名等)が含まれていないか
 - [ ] コードブロックが `<pre><code>` で囲まれているか
+- [ ] OGP メタタグ(og:title / og:description / og:url / og:image)を記事内容に合わせたか
+- [ ] og:image の title= が encodeURIComponent された H1 になっているか
 - [ ] index.html にリンクを追記したか
 - [ ] ブランチ名が note/<slug> になっているか
