@@ -70,7 +70,8 @@ npx -y pagefind --site . --glob "{aws,oci,misc}/**/*.html" --serve
    PR レビューを必須にする(branch protection)
 3. Cloudflare ダッシュボード → Workers & Pages → Create → Pages →
    「Connect to Git」でこのリポジトリを接続する
-   - Build command: なし(空欄)
+   - Build command: `npx -y pagefind --site . --glob "{aws,oci,misc}/**/*.html"`
+     (検索索引の生成。詳細は上記「検索(Pagefind)」を参照)
    - Build output directory: `/`(リポジトリルート)
 4. プロジェクトの Custom domains で `notes.maijun.net` を追加する
    (DNS が Cloudflare 管理なので CNAME は自動設定される)
