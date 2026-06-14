@@ -41,7 +41,11 @@ description: ユーザーが「質問:」で始まる技術質問をしたとき
 
 - `og:title` … H1(記事タイトル)と**同じ文字列**にする
 - `og:description` … `<meta name="description">` と同じ結論 1 文にする
-- `og:url` … `https://notes.maijun.net/<category>/<slug>.html`
+- `og:url` と `<link rel="canonical">` … **拡張子なしの正規 URL**
+  `https://notes.maijun.net/<category>/<slug>`(`.html` を付けない)
+  - Cloudflare Pages は `.html` 付き URL を 308 で拡張子なしへリダイレクトする。
+    `og:url` に `.html` を書くと SNS クローラ(特に X)がカードを生成できないため、
+    必ず拡張子なしにする
 - `og:image` … `https://notes.maijun.net/og?title=<H1 を encodeURIComponent した値>`
   - 動的 OGP 画像生成エンドポイント(`functions/og.js`)がタイトル入り画像を返す
   - エンコード例: `KMS キーポリシー` → `KMS%20%E3%82%AD%E3%83%BC%E3%83%9D%E3%83%AA%E3%82%B7%E3%83%BC`

@@ -81,7 +81,8 @@ package.json / package-lock.json       # ローカルのバンドル用ツール
 <meta property="og:site_name" content="maijun の技術質問ノート">
 <meta property="og:title" content="記事タイトル">
 <meta property="og:description" content="結論を 1 文で">
-<meta property="og:url" content="https://notes.maijun.net/aws/your-slug.html">
+<link rel="canonical" href="https://notes.maijun.net/aws/your-slug">
+<meta property="og:url" content="https://notes.maijun.net/aws/your-slug">
 <meta property="og:image" content="https://notes.maijun.net/og?title=記事タイトルを encodeURIComponent した値">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -196,5 +197,9 @@ cp noto-sans-jp-bold-subset.otf <repo>/assets/og/noto-sans-jp-bold-subset.otf
 - **404 /og** … `functions/og.js` が deploy に含まれているか、Build output が `/` か確認。
 - **500 font fetch failed** … `https://notes.maijun.net/assets/og/noto-sans-jp-bold-subset.otf` が配信されているか確認。
 - **文字化け(豆腐)** … サブセット範囲外の文字。上記手順で範囲を広げて再生成する。
-- **OGP が更新されない** … X / Facebook 等はカードをキャッシュする。各社のデバッガ
-  (X: Post Inspector, Facebook: Sharing Debugger)で再取得する。
+- **SNS カードが出ない(画像は /og で正常に返るのに)** … `og:url` / `canonical` が
+  `.html` 付きになっていないか確認。Cloudflare Pages は `.html` を **308 で拡張子なしへ
+  リダイレクト**するため、`og:url` に `.html` を書くとクローラ(特に X)がカードを生成できない。
+  正規 URL は**拡張子なし**(`/aws/your-slug`)で統一する。
+- **OGP が更新されない** … X / Facebook 等はカードをキャッシュする。Facebook の
+  Sharing Debugger 等で再取得する(X の公開 Card Validator は 2022 に廃止)。
