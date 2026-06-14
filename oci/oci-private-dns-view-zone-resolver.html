@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCI プライベート DNS のビュー・ゾーン・リゾルバ三層構造 | maijun の技術質問ノート</title>
+  <meta name="description" content="OCI プライベート DNS は「ゾーン→ビュー→リゾルバ」の三層構造を持ち、ビューを複数 VCN 間で共有したりスプリットホライズン DNS を実現できる点が AWS Route53 との大きな違いです。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="OCI プライベート DNS のビュー・ゾーン・リゾルバ三層構造">
+  <meta property="og:description" content="OCI プライベート DNS は「ゾーン→ビュー→リゾルバ」の三層構造を持ち、ビューを複数 VCN 間で共有したりスプリットホライズン DNS を実現できる点が AWS Route53 との大きな違いです。">
+  <link rel="canonical" href="https://notes.maijun.net/oci/oci-private-dns-view-zone-resolver">
+  <meta property="og:url" content="https://notes.maijun.net/oci/oci-private-dns-view-zone-resolver">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=OCI%20%E3%83%97%E3%83%A9%E3%82%A4%E3%83%99%E3%83%BC%E3%83%88%20DNS%20%E3%81%AE%E3%83%93%E3%83%A5%E3%83%BC%E3%83%BB%E3%82%BE%E3%83%BC%E3%83%B3%E3%83%BB%E3%83%AA%E3%82%BE%E3%83%AB%E3%83%90%E4%B8%89%E5%B1%A4%E6%A7%8B%E9%80%A0">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time data-pagefind-meta="date" datetime="2026-06-14">2026-06-14</time>
+      </p>
+      <h1>OCI プライベート DNS のビュー・ゾーン・リゾルバ三層構造</h1>
+
+      <div class="lead">
+        <p>OCI プライベート DNS は「ゾーン → ビュー → リゾルバ」という三層構造を持ちます。<em>ゾーン</em>は DNS レコードの集まり、<em>ビュー</em>はゾーンをまとめる論理コンテナ、<em>リゾルバ</em>は VCN ごとに 1 つ自動作成される問い合わせエンジンです。AWS Route53 のプライベートホストゾーンが VPC に直接紐づく平坦な構造なのに対し、OCI は「ビュー」という中間層を持つことで、同じビューを複数 VCN から共有参照したり、リゾルバが複数のビューを優先順で検索するスプリットホライズン DNS を実現しています。</p>
+      </div>
+
+      <h2>三つのコンポーネントの役割</h2>
+
+      <h3>プライベートゾーン (Private Zone)</h3>
+      <p>通常の DNS ゾーンと同じく、ドメイン名に紐づく A / AAAA / CNAME / PTR などのレコードを格納します。ゾーン名はプライベートアドレスを指すカスタム名(<code>app.example.internal</code> など)でも、実在するパブリックドメイン名でも構いません。応答は VCN 内からしか届きません。</p>
+
+      <h3>プライベートビュー (Private View)</h3>
+      <p>ゾーンをグループ化する名前付きコンテナです。同じゾーン名をビューをまたいで使うことはできますが、<strong>同一ビュー内ではゾーン名は一意</strong>でなければなりません。ビューは 1 つのオブジェクトとして複数のリゾルバから参照できるため、DNS データの共有単位になります。</p>
+      <p>VCN を作成すると、システムが管理する<em>デフォルトビュー</em>が自動生成されます。デフォルトビューは保護されており、<code>*.oraclevcn.com</code> 形式の VCN 内ホスト名ゾーンが含まれます。このゾーンは削除できません。</p>
+
+      <h3>プライベートリゾルバ (Private Resolver)</h3>
+      <p>VCN に 1 つ割り当てられる DNS サーバーです。「Use DNS hostnames in this VCN」を有効にした VCN を作成すると自動生成されます。リゾルバは受け取ったクエリに対して次の順番で応答を試みます。</p>
+      <ol>
+        <li><strong>カスタムビューを登録順に検索</strong> — リゾルバに明示的にアタッチしたビューを順番に確認</li>
+        <li><strong>デフォルトビューを検索</strong> — 保護済みのシステム管理ゾーンを確認</li>
+        <li><strong>転送ルール(Forwarding Rule)を適用</strong> — 条件が一致すれば外部 DNS / オンプレ DNS へ転送</li>
+        <li><strong>インターネット DNS へ解決</strong> — どれにも該当しない場合</li>
+      </ol>
+
+      <h2>「ビュー」が生む二つの利点</h2>
+
+      <h3>① 複数 VCN 間でのゾーン共有</h3>
+      <p>AWS Route53 では、プライベートホストゾーンを複数 VPC と関連付けることはできますが、ゾーン自体を「グループ」としてまとめる仕組みはありません。OCI では一つのビューを複数リゾルバ(= 複数 VCN)から参照できるため、たとえば共通のサービス名解決ゾーンを一元管理できます。</p>
+
+      <pre><code># 例: 共有ビューを 2 つの VCN のリゾルバにアタッチする (CLI)
+oci dns resolver update \
+  --resolver-id <resolver-ocid-vcn-a> \
+  --attached-views '[{"viewId":"<shared-view-ocid>"}]'
+
+oci dns resolver update \
+  --resolver-id <resolver-ocid-vcn-b> \
+  --attached-views '[{"viewId":"<shared-view-ocid>"}]'</code></pre>
+
+      <h3>② スプリットホライズン DNS</h3>
+      <p>同じゾーン名(<code>api.example.internal</code>)を異なるビューに作成し、VCN ごとに異なるビューを参照させることで、同じ FQDN に対して VCN によって異なる IP を返す構成が可能です。例えば Dev VCN のリゾルバはビュー Dev を参照し、Prod VCN のリゾルバはビュー Prod を参照する、という分離ができます。</p>
+
+      <h2>構成イメージ</h2>
+
+      <figure>
+        <svg viewBox="0 0 620 250" xmlns="http://www.w3.org/2000/svg" aria-label="OCI プライベート DNS 三層構造の概念図" style="max-width:100%;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif">
+          <defs>
+            <marker id="arrowGray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#666"/>
+            </marker>
+            <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#2e7d32"/>
+            </marker>
+          </defs>
+
+          <!-- VCN A -->
+          <rect x="10" y="10" width="175" height="65" rx="8" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>
+          <text x="97" y="30" text-anchor="middle" font-size="13" font-weight="bold" fill="#0d47a1">VCN A</text>
+          <rect x="22" y="37" width="150" height="28" rx="5" fill="#bbdefb" stroke="#1565c0" stroke-width="1.5"/>
+          <text x="97" y="56" text-anchor="middle" font-size="12" fill="#0d47a1">Resolver A</text>
+
+          <!-- VCN B -->
+          <rect x="435" y="10" width="175" height="65" rx="8" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>
+          <text x="522" y="30" text-anchor="middle" font-size="13" font-weight="bold" fill="#0d47a1">VCN B</text>
+          <rect x="448" y="37" width="150" height="28" rx="5" fill="#bbdefb" stroke="#1565c0" stroke-width="1.5"/>
+          <text x="522" y="56" text-anchor="middle" font-size="12" fill="#0d47a1">Resolver B</text>
+
+          <!-- Shared Custom View (center top) -->
+          <rect x="205" y="10" width="210" height="90" rx="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="2"/>
+          <text x="310" y="30" text-anchor="middle" font-size="12" font-weight="bold" fill="#1b5e20">共有カスタムビュー</text>
+          <rect x="220" y="38" width="180" height="22" rx="4" fill="#c8e6c9"/>
+          <text x="310" y="53" text-anchor="middle" font-size="11" fill="#1b5e20">Zone: app.example.internal</text>
+          <rect x="220" y="65" width="180" height="22" rx="4" fill="#c8e6c9"/>
+          <text x="310" y="80" text-anchor="middle" font-size="11" fill="#2e7d32">app  A  10.0.1.10</text>
+
+          <!-- Default View A -->
+          <rect x="10" y="155" width="175" height="80" rx="8" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="1.5"/>
+          <text x="97" y="175" text-anchor="middle" font-size="12" font-weight="bold" fill="#4a148c">Default View A</text>
+          <text x="97" y="190" text-anchor="middle" font-size="10" fill="#6a1b9a">システム管理・保護済み</text>
+          <rect x="22" y="197" width="150" height="24" rx="4" fill="#e1bee7"/>
+          <text x="97" y="213" text-anchor="middle" font-size="11" fill="#4a148c">Zone: *.oraclevcn.com</text>
+
+          <!-- Default View B -->
+          <rect x="435" y="155" width="175" height="80" rx="8" fill="#f3e5f5" stroke="#7b1fa2" stroke-width="1.5"/>
+          <text x="522" y="175" text-anchor="middle" font-size="12" font-weight="bold" fill="#4a148c">Default View B</text>
+          <text x="522" y="190" text-anchor="middle" font-size="10" fill="#6a1b9a">システム管理・保護済み</text>
+          <rect x="448" y="197" width="150" height="24" rx="4" fill="#e1bee7"/>
+          <text x="522" y="213" text-anchor="middle" font-size="11" fill="#4a148c">Zone: *.oraclevcn.com</text>
+
+          <!-- Internet DNS (center bottom) -->
+          <rect x="215" y="160" width="190" height="36" rx="8" fill="#fff9c4" stroke="#f9a825" stroke-width="1.5"/>
+          <text x="310" y="183" text-anchor="middle" font-size="12" fill="#e65100">インターネット DNS</text>
+
+          <!-- Arrow: Resolver A → Shared View -->
+          <line x1="172" y1="51" x2="205" y2="51" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowGreen)"/>
+          <text x="188" y="45" text-anchor="middle" font-size="9" fill="#2e7d32">参照</text>
+
+          <!-- Arrow: Resolver B → Shared View -->
+          <line x1="448" y1="51" x2="415" y2="51" stroke="#2e7d32" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowGreen)"/>
+          <text x="431" y="45" text-anchor="middle" font-size="9" fill="#2e7d32">参照</text>
+
+          <!-- Arrow: Resolver A → Default View A -->
+          <line x1="97" y1="65" x2="97" y2="155" stroke="#666" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+          <text x="55" y="115" font-size="9" fill="#666">デフォルト</text>
+
+          <!-- Arrow: Resolver B → Default View B -->
+          <line x1="522" y1="65" x2="522" y2="155" stroke="#666" stroke-width="1.5" marker-end="url(#arrowGray)"/>
+          <text x="530" y="115" font-size="9" fill="#666">デフォルト</text>
+
+          <!-- Arrow: Default A → Internet DNS -->
+          <line x1="150" y1="235" x2="215" y2="190" stroke="#f9a825" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+
+          <!-- Arrow: Default B → Internet DNS -->
+          <line x1="435" y1="195" x2="405" y2="190" stroke="#f9a825" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrowGreen)"/>
+
+          <text x="310" y="245" text-anchor="middle" font-size="10" fill="#888">マッチしない場合: 転送ルール → インターネット DNS の順で処理</text>
+        </svg>
+        <figcaption style="font-size:0.85em;color:#666;margin-top:4px">VCN A と VCN B が同一の共有ビューを参照しつつ、それぞれ独自のデフォルトビューも持つ構成</figcaption>
+      </figure>
+
+      <h2>AWS Route53 プライベートホストゾーンとの比較</h2>
+
+      <table style="width:100%;border-collapse:collapse;font-size:0.9em">
+        <thead>
+          <tr style="background:#f5f5f5">
+            <th style="border:1px solid #ddd;padding:8px;text-align:left">観点</th>
+            <th style="border:1px solid #ddd;padding:8px;text-align:left">AWS Route53 PHZ</th>
+            <th style="border:1px solid #ddd;padding:8px;text-align:left">OCI プライベート DNS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #ddd;padding:8px">構造</td>
+            <td style="border:1px solid #ddd;padding:8px">ゾーン → VPC (直接紐づき)</td>
+            <td style="border:1px solid #ddd;padding:8px">ゾーン → ビュー → リゾルバ → VCN</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ddd;padding:8px">ゾーンの共有</td>
+            <td style="border:1px solid #ddd;padding:8px">1 ゾーンを複数 VPC に関連付け可</td>
+            <td style="border:1px solid #ddd;padding:8px">1 ビューを複数 VCN のリゾルバが参照可</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ddd;padding:8px">スプリットホライズン</td>
+            <td style="border:1px solid #ddd;padding:8px">同名の PHZ を別々に作成し VPC ごとに関連付け</td>
+            <td style="border:1px solid #ddd;padding:8px">同名ゾーンを別ビューに置き、リゾルバごとに参照ビューを切り替え</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ddd;padding:8px">システム管理ゾーン</td>
+            <td style="border:1px solid #ddd;padding:8px">Route53 Resolver が暗黙的に処理</td>
+            <td style="border:1px solid #ddd;padding:8px">デフォルトビューの保護済みゾーンとして明示的に存在</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ddd;padding:8px">解決の優先順位</td>
+            <td style="border:1px solid #ddd;padding:8px">PHZ が Resolver より優先 (関連付けた VPC 内)</td>
+            <td style="border:1px solid #ddd;padding:8px">カスタムビュー → デフォルトビュー → 転送ルール → インターネット の順</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>よくある活用パターン</h2>
+      <ul>
+        <li><strong>マルチ VCN での共通サービス名解決</strong> — <code>db.shared.internal</code> などを 1 つのビューで管理し、複数 VCN のリゾルバから参照する。</li>
+        <li><strong>オンプレミスとの名前解決統合</strong> — 転送ルールを使い、オンプレの DNS ゾーンはオンプレ DNS サーバーへ条件付き転送する。</li>
+        <li><strong>開発・本番の DNS 分離</strong> — 同名のゾーンを Dev ビューと Prod ビューに別々に作成し、環境ごとのリゾルバに割り当てる。</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/DNS/Tasks/privatedns.htm" rel="noopener">Oracle Cloud Infrastructure Documentation — Private DNS</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/DNS/Concepts/views.htm" rel="noopener">Oracle Cloud Infrastructure Documentation — Private Views</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/dns-topic-Private-resolver.htm" rel="noopener">Oracle Cloud Infrastructure Documentation — Private DNS resolvers</a></li>
+          <li><a href="https://docs.oracle.com/en/solutions/private-dns/index.html" rel="noopener">Oracle — Use Private DNS in Interconnected VCNs and On-Premises (Solution Playbook)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../oci.html">← OCI の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
