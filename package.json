@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Build tooling for notes.maijun.net OGP image Function. The deployed functions/og.js is pre-bundled and needs no install at deploy time.",
   "scripts": {
-    "build:og": "esbuild tools/og.src.js --bundle --format=esm --target=es2022 --platform=browser --conditions=worker,browser --banner:js=\"globalThis.process||={env:{}};\" --outfile=functions/og.js",
+    "build:og": "esbuild tools/og.src.js --bundle --format=esm --target=es2022 --platform=browser --conditions=worker,browser --external:*.wasm --banner:js=\"globalThis.process||={env:{}};\" --outfile=functions/og.js",
     "dev": "wrangler pages dev . --compatibility-date=2025-07-18"
   },
   "devDependencies": {

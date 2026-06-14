@@ -1,27 +1,33 @@
 // SOURCE for functions/og.js — bundled with esbuild into a self-contained file.
-// Do not edit functions/og.js by hand; edit this source and re-bundle.
-import satori from "satori";
+// Do not edit functions/og.js by hand; edit this source and run `npm run build:og`.
+//
+// Cloudflare Workers forbids compiling WASM from bytes at runtime
+// ("Wasm code generation disallowed by embedder"). So both WASM modules are
+// imported as STATIC modules (compiled at deploy time by Pages) and instantiated
+// from the precompiled WebAssembly.Module — which is allowed.
+//   - satori: use the `standalone` build (no auto yoga) + init(yogaModule)
+//   - resvg : initWasm(resvgModule)
+// The `.wasm` imports below are kept EXTERNAL by esbuild (--external:*.wasm) and
+// resolved by Pages relative to functions/og.js → functions/{yoga,resvg}.wasm.
+import satori, { init as initSatori } from "satori/standalone";
 import { initWasm, Resvg } from "@resvg/resvg-wasm";
+import yogaWasm from "./yoga.wasm";
+import resvgWasm from "./resvg.wasm";
 
 const SITE = "notes.maijun.net";
 const BRAND = "maijun の技術質問ノート";
 const FONT_PATH = "/assets/og/noto-sans-jp-bold-subset.otf";
-const WASM_PATH = "/assets/og/resvg.wasm";
 const TITLE_MAX = 48;
 
-let wasmReady;
+let initReady;
 let fontCache;
 
-function ensureWasm(origin) {
-  if (!wasmReady) {
-    wasmReady = fetch(new URL(WASM_PATH, origin))
-      .then((r) => {
-        if (!r.ok) throw new Error(`wasm fetch failed: ${r.status}`);
-        return r.arrayBuffer();
-      })
-      .then((buf) => initWasm(buf));
+// Instantiate both WASM modules once per isolate (from precompiled Modules → no codegen).
+function ensureInit() {
+  if (!initReady) {
+    initReady = Promise.all([initSatori(yogaWasm), initWasm(resvgWasm)]);
   }
-  return wasmReady;
+  return initReady;
 }
 
 async function loadFont(origin) {
@@ -61,7 +67,8 @@ export async function onRequestGet({ request }) {
   try {
     const url = new URL(request.url);
     const title = clampTitle(url.searchParams.get("title"));
-    const [, font] = await Promise.all([ensureWasm(url.origin), loadFont(url.origin)]);
+
+    const [, font] = await Promise.all([ensureInit(), loadFont(url.origin)]);
 
     const svg = await satori(ogTree(title), {
       width: 1200, height: 630,
