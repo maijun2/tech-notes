@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amazon Bedrock Agents と AgentCore は別物? 役割の違いと使い分け | maijun の技術質問ノート</title>
+  <meta name="description" content="Bedrock Agents は構成ベースのフルマネージドなエージェント機能、AgentCore は任意のフレームワーク/モデルで作ったエージェントを運用するモジュール型インフラ基盤で、別物かつ併用可能です。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Amazon Bedrock Agents と AgentCore は別物? 役割の違いと使い分け">
+  <meta property="og:description" content="Bedrock Agents は構成ベースのフルマネージドなエージェント機能、AgentCore は任意のフレームワーク/モデルで作ったエージェントを運用するモジュール型インフラ基盤で、別物かつ併用可能です。">
+  <meta property="og:url" content="https://notes.maijun.net/aws/bedrock-agents-vs-agentcore.html">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Amazon%20Bedrock%20Agents%20%E3%81%A8%20AgentCore%20%E3%81%AF%E5%88%A5%E7%89%A9%3F%20%E5%BD%B9%E5%89%B2%E3%81%AE%E9%81%95%E3%81%84%E3%81%A8%E4%BD%BF%E3%81%84%E5%88%86%E3%81%91">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-06-14">2026-06-14</time>
+      </p>
+      <h1>Amazon Bedrock Agents と AgentCore は別物? 役割の違いと使い分け</h1>
+
+      <div class="lead">
+        <p>
+          はい、<strong>別物</strong>です。<strong>Amazon Bedrock Agents</strong> は、Bedrock 内で
+          action group や knowledge base を設定するだけでエージェントを作れる「フルマネージド・構成ベース」の機能で、
+          プロンプト管理・オーケストレーション・メモリ・監視などを AWS が引き受けます。
+          一方 <strong>Amazon Bedrock AgentCore</strong>(2025 年 10 月 GA)は、LangGraph・CrewAI・Strands などの
+          <strong>任意のフレームワークと任意のモデル</strong>で作ったエージェントを、安全にデプロイ・運用するための
+          <strong>モジュール型インフラ基盤</strong>です。前者は「手早く作る」、後者は「自作エージェントを本番で動かす土台」と
+          役割が分かれており、対立するものではなく<strong>併用も可能</strong>です。
+        </p>
+      </div>
+
+      <h2>ひとことで言うと</h2>
+      <p>
+        混乱しやすいのは、両方とも名前に「Bedrock」と「Agent」が付くからです。ですが指している層が違います。
+        Bedrock Agents は<strong>「エージェントの作り方(プロダクト機能)」</strong>、AgentCore は
+        <strong>「エージェントの動かし方(運用基盤)」</strong>だと捉えると整理できます。
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 640 220" width="100%" height="auto" role="img"
+             aria-label="Bedrock Agents は構成ベースのマネージド機能、AgentCore は任意フレームワークのエージェントを動かす運用基盤、という関係図">
+          <rect x="20" y="30" width="280" height="150" rx="10" fill="none" stroke="#b3611f" stroke-width="2"/>
+          <text x="160" y="58" text-anchor="middle" font-size="15" font-weight="bold" fill="#b3611f">Bedrock Agents</text>
+          <text x="160" y="84" text-anchor="middle" font-size="12" fill="#5d6b70">フルマネージド / 構成ベース</text>
+          <text x="160" y="108" text-anchor="middle" font-size="12" fill="#5d6b70">action groups・knowledge base</text>
+          <text x="160" y="128" text-anchor="middle" font-size="12" fill="#5d6b70">オーケストレーションは AWS 任せ</text>
+          <text x="160" y="160" text-anchor="middle" font-size="12" fill="#1e2a30">「手早く作る」</text>
+
+          <rect x="340" y="30" width="280" height="150" rx="10" fill="none" stroke="#0e7c7b" stroke-width="2"/>
+          <text x="480" y="58" text-anchor="middle" font-size="15" font-weight="bold" fill="#0e7c7b">Bedrock AgentCore</text>
+          <text x="480" y="84" text-anchor="middle" font-size="12" fill="#5d6b70">任意フレームワーク / 任意モデル</text>
+          <text x="480" y="108" text-anchor="middle" font-size="12" fill="#5d6b70">Runtime・Memory・Gateway</text>
+          <text x="480" y="128" text-anchor="middle" font-size="12" fill="#5d6b70">Identity・Observability</text>
+          <text x="480" y="160" text-anchor="middle" font-size="12" fill="#1e2a30">「自作エージェントを運用する基盤」</text>
+        </svg>
+        <figcaption>作る手軽さ(左)と、運用の自由度・スケール(右)で役割が分かれる</figcaption>
+      </figure>
+
+      <h2>比較表</h2>
+      <table>
+        <thead>
+          <tr><th>観点</th><th>Bedrock Agents</th><th>Bedrock AgentCore</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>位置づけ</td><td>フルマネージドのエージェント機能</td><td>エージェント運用のインフラ基盤</td></tr>
+          <tr><td>作り方</td><td>コンソール / API で構成する</td><td>任意のフレームワークでコードを書く</td></tr>
+          <tr><td>フレームワーク</td><td>Bedrock 固有</td><td>任意(LangGraph, CrewAI, LlamaIndex, Strands, Google ADK 等)</td></tr>
+          <tr><td>モデル</td><td>Bedrock 上のモデル</td><td>Bedrock 内外の任意のモデル</td></tr>
+          <tr><td>主な構成要素</td><td>action groups / knowledge bases / orchestration / multi-agent collaboration</td><td>Runtime / Memory / Gateway / Identity / Observability(+ Browser, Code Interpreter)</td></tr>
+          <tr><td>向くケース</td><td>まず手早く作り、運用も任せたい</td><td>自作 / OSS フレームのエージェントを本番でスケール運用したい</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Amazon Bedrock Agents とは</h2>
+      <p>
+        Amazon Bedrock Agents は、アプリケーションに自律的なエージェントを<strong>構成ベース</strong>で組み込む機能です。
+        キャパシティのプロビジョニングやインフラ管理、独自コードの記述は不要で、AWS が
+        プロンプトエンジニアリング・メモリ・監視・暗号化・ユーザー権限・API 呼び出しを管理します。
+      </p>
+      <ul>
+        <li><strong>action groups</strong>: エージェントが呼べる API / Lambda と、ユーザーから引き出すべきパラメータを定義する</li>
+        <li><strong>knowledge bases</strong>: 自社データを参照させて回答を補強する(RAG)</li>
+        <li><strong>multi-agent collaboration</strong>: 複数エージェントを連携させる</li>
+      </ul>
+
+      <h2>Amazon Bedrock AgentCore とは</h2>
+      <p>
+        Amazon Bedrock AgentCore は、<strong>任意のフレームワーク・モデル・プロトコル</strong>で構築したエージェントを、
+        スケーラブルかつ安全に<strong>デプロイ・運用</strong>するためのプラットフォームです。2025 年 10 月 13 日に
+        一般提供(GA)が発表されました。各サービスは<strong>必要なものだけを単体で(a la carte)</strong>採用できます。
+      </p>
+      <ul>
+        <li><strong>Runtime</strong>: 完全なセッション分離を備えた実行環境。最大 8 時間の長時間ワークロードに対応</li>
+        <li><strong>Memory</strong>: セッション内 / 長期のメモリを管理し、過去のやり取りから文脈を提供する</li>
+        <li><strong>Gateway</strong>: API・Lambda・MCP サーバーをツールとして安全に公開・接続する</li>
+        <li><strong>Identity</strong>: エージェントごとの ID と認証・認可(Cognito / Okta / Entra ID 等と連携)</li>
+        <li><strong>Observability</strong>: Amazon CloudWatch ベースで実行のエンドツーエンドな可視化を提供する</li>
+        <li>加えて、組み込みの <strong>Browser</strong>(Web 操作)と <strong>Code Interpreter</strong>(コード実行)ツール</li>
+      </ul>
+      <p>
+        つまり AgentCore は「エージェントの頭脳(推論ロジック)」そのものではなく、それを<strong>本番で動かすための
+        共通部品群</strong>を提供します。エージェントのロジックは自分で(任意のフレームワークで)書きます。
+      </p>
+
+      <h2>どう使い分けるか</h2>
+      <ul>
+        <li><strong>手早く始めたい / 運用も AWS に任せたい</strong> → Bedrock Agents。構成だけでエージェントが立ち上がる</li>
+        <li><strong>LangGraph や CrewAI など特定フレームワークを使いたい / Bedrock 外のモデルも使いたい / 細かく制御したい</strong>
+          → AgentCore。フレームワークは自由に選び、運用基盤だけ借りる</li>
+        <li><strong>併用</strong>も可能。例えばロジックは自作フレームワークで書いて AgentCore Runtime で動かしつつ、
+          必要な部品(Memory や Gateway)だけ単体採用する、といった構成が取れる</li>
+      </ul>
+      <p>
+        要するに「Bedrock Agents をやめて AgentCore に乗り換える」という二者択一ではなく、
+        <strong>作りたいものの自由度と運用要件で選ぶ</strong>のが正しい捉え方です。
+      </p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/agents.html" rel="noopener">Automate tasks in your application using AI agents - Amazon Bedrock(Bedrock Agents)</a></li>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/agents-how.html" rel="noopener">How Amazon Bedrock Agents works - Amazon Bedrock</a></li>
+          <li><a href="https://aws.amazon.com/bedrock/agentcore/" rel="noopener">Amazon Bedrock AgentCore - AWS(製品ページ)</a></li>
+          <li><a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html" rel="noopener">What is Amazon Bedrock AgentCore? - 開発者ガイド</a></li>
+          <li><a href="https://aws.amazon.com/about-aws/whats-new/2025/10/amazon-bedrock-agentcore-available/" rel="noopener">Amazon Bedrock AgentCore is now generally available(2025-10-13)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
