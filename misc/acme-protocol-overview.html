@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACME プロトコルとは — TLS 証明書の自動管理プロトコル | maijun の技術質問ノート</title>
+  <meta name="description" content="ACME(RFC 8555)は TLS 証明書の取得・更新・失効を自動化する標準プロトコルで、Sectigo を含む多くの商用 CA が対応しており、手作業の証明書管理を排除できます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="ACME プロトコルとは — TLS 証明書の自動管理プロトコル">
+  <meta property="og:description" content="ACME(RFC 8555)は TLS 証明書の取得・更新・失効を自動化する標準プロトコルで、Sectigo を含む多くの商用 CA が対応しており、手作業の証明書管理を排除できます。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/acme-protocol-overview">
+  <meta property="og:url" content="https://notes.maijun.net/misc/acme-protocol-overview">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=ACME%20%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB%E3%81%A8%E3%81%AF%20%E2%80%94%20TLS%20%E8%A8%BC%E6%98%8E%E6%9B%B8%E3%81%AE%E8%87%AA%E5%8B%95%E7%AE%A1%E7%90%86%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">misc</span>
+        <time data-pagefind-meta="date" datetime="2026-06-15">2026-06-15</time>
+      </p>
+      <h1>ACME プロトコルとは — TLS 証明書の自動管理プロトコル</h1>
+
+      <div class="lead">
+        <p>
+          ACME (Automated Certificate Management Environment) は、TLS 証明書の取得・更新・失効を
+          自動化するための標準プロトコルです。IETF が <a href="https://datatracker.ietf.org/doc/html/rfc8555" rel="noopener">RFC 8555</a> として標準化しており、
+          もともと Let's Encrypt のために開発されましたが、現在は Sectigo を含む多くの商用 CA が対応しています。
+          ACME を使うことで「証明書の期限切れ」や「手作業による更新漏れ」という運用上の問題を根本から排除できます。
+        </p>
+      </div>
+
+      <h2>ACME が解決する問題</h2>
+      <p>
+        従来の証明書管理では、担当者が CA の Web ポータルで CSR を生成・提出し、
+        メールで証明書を受け取り、サーバに手作業でインストールする手順が一般的でした。
+        証明書の有効期限(多くは 1〜2 年)が近づくたびにこの作業が必要で、対応漏れによるサービス障害が絶えませんでした。
+      </p>
+      <p>
+        ACME はこの一連の流れを機械間通信(マシン・ツー・マシン)で完全に自動化します。
+        クライアントソフトウェアが CA の ACME サーバと HTTPS 通信を行い、ドメイン所有の証明・証明書発行・
+        サーバへのインストールまでを無人で行います。
+      </p>
+
+      <h2>ACME の仕組み — フロー概要</h2>
+      <p>ACME のやり取りは大きく 4 ステップで構成されます。</p>
+
+      <!-- フロー図 -->
+      <svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg"
+           style="max-width:100%;height:auto;display:block;margin:1.5rem 0;font-family:sans-serif;font-size:13px;">
+        <!-- ボックス: ACME Client -->
+        <rect x="40" y="100" width="140" height="50" rx="6" fill="#e8f4fd" stroke="#4a90d9" stroke-width="1.5"/>
+        <text x="110" y="122" text-anchor="middle" fill="#1a3a5c" font-weight="bold">ACME Client</text>
+        <text x="110" y="140" text-anchor="middle" fill="#1a3a5c">(certbot 等)</text>
+
+        <!-- ボックス: ACME Server (CA) -->
+        <rect x="290" y="100" width="140" height="50" rx="6" fill="#e8f4fd" stroke="#4a90d9" stroke-width="1.5"/>
+        <text x="360" y="122" text-anchor="middle" fill="#1a3a5c" font-weight="bold">ACME Server</text>
+        <text x="360" y="140" text-anchor="middle" fill="#1a3a5c">(CA: Sectigo 等)</text>
+
+        <!-- ボックス: ドメイン -->
+        <rect x="540" y="100" width="140" height="50" rx="6" fill="#f0f9ee" stroke="#4caf50" stroke-width="1.5"/>
+        <text x="610" y="122" text-anchor="middle" fill="#1b4d1e" font-weight="bold">ドメイン</text>
+        <text x="610" y="140" text-anchor="middle" fill="#1b4d1e">(HTTP / DNS)</text>
+
+        <!-- ステップ1: アカウント作成 / 注文 -->
+        <line x1="180" y1="115" x2="290" y2="115" stroke="#4a90d9" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="235" y="108" text-anchor="middle" fill="#333">① 注文</text>
+
+        <!-- ステップ2: チャレンジ要求 -->
+        <line x1="290" y1="130" x2="180" y2="130" stroke="#4a90d9" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="235" y="148" text-anchor="middle" fill="#333">② チャレンジ</text>
+
+        <!-- ステップ3: チャレンジ設置 -->
+        <line x1="180" y1="112" x2="540" y2="112" stroke="#4caf50" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrG)"/>
+        <text x="360" y="100" text-anchor="middle" fill="#2e7d32">③ トークン設置</text>
+
+        <!-- ステップ4: 検証 -->
+        <line x1="430" y1="128" x2="540" y2="128" stroke="#f57c00" stroke-width="1.5" marker-end="url(#arrO)"/>
+        <text x="485" y="148" text-anchor="middle" fill="#e65100">④ 検証</text>
+
+        <!-- ステップ5: 証明書発行 -->
+        <line x1="290" y1="145" x2="180" y2="145" stroke="#9c27b0" stroke-width="1.5" marker-end="url(#arrP)"/>
+        <text x="235" y="165" text-anchor="middle" fill="#6a0080">⑤ 証明書発行</text>
+
+        <!-- 矢印マーカー -->
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4a90d9"/>
+          </marker>
+          <marker id="arrG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#4caf50"/>
+          </marker>
+          <marker id="arrO" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f57c00"/>
+          </marker>
+          <marker id="arrP" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#9c27b0"/>
+          </marker>
+        </defs>
+
+        <!-- ステップ説明 -->
+        <text x="360" y="210" text-anchor="middle" fill="#555" font-size="12">① Client が CA へ証明書を注文(newOrder)</text>
+        <text x="360" y="228" text-anchor="middle" fill="#555" font-size="12">② CA がチャレンジ(HTTP-01 / DNS-01)を返す</text>
+        <text x="360" y="246" text-anchor="middle" fill="#555" font-size="12">③ Client がトークンをドメインに設置</text>
+        <text x="360" y="264" text-anchor="middle" fill="#555" font-size="12">④ CA がドメインを検証 ⑤ 証明書を発行</text>
+      </svg>
+
+      <h2>チャレンジの種類</h2>
+      <p>
+        ACME ではドメインの所有を証明するために「チャレンジ」を使います。
+        主な種類は以下の 3 つです。
+      </p>
+      <table style="border-collapse:collapse;width:100%;margin:1rem 0;">
+        <thead>
+          <tr style="background:#f0f4f8;">
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left;">チャレンジ</th>
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left;">方法</th>
+            <th style="border:1px solid #ccc;padding:0.5rem 0.75rem;text-align:left;">適したシナリオ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;"><code>HTTP-01</code></td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;"><code>http://&lt;domain&gt;/.well-known/acme-challenge/&lt;token&gt;</code> にトークンを配置</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;">ポート 80 が公開されている Web サーバ</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;"><code>DNS-01</code></td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;"><code>_acme-challenge.&lt;domain&gt;</code> に TXT レコードを追加</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;">ワイルドカード証明書、内部サーバ</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;"><code>TLS-ALPN-01</code></td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;">ポート 443 で ALPN 拡張を用いた TLS ハンドシェイクで証明</td>
+            <td style="border:1px solid #ccc;padding:0.5rem 0.75rem;">HTTP 非公開で TLS のみ公開のサービス</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>技術仕様のポイント</h2>
+      <p>ACME (RFC 8555) の通信は以下の仕様に基づきます。</p>
+      <ul>
+        <li>すべての通信は <strong>HTTPS</strong> で行い、JSON ペイロードを <strong>JWS (RFC 7515)</strong> で署名します。</li>
+        <li>CA の ACME ディレクトリ URL にアクセスすると、<code>newAccount</code> / <code>newOrder</code> / <code>revokeCert</code> 等のエンドポイント一覧を取得できます。</li>
+        <li>リプレイ攻撃対策として、毎回 <code>newNonce</code> エンドポイントから Nonce を取得してリクエストに含めます。</li>
+        <li>証明書は DER 形式の HTTPS レスポンスで返され、クライアントが PEM に変換します。</li>
+      </ul>
+
+      <h2>主なクライアントソフトウェア</h2>
+      <p>ACME クライアントは OSS・商用合わせて多数あります。代表的なものを挙げます。</p>
+      <ul>
+        <li><strong>Certbot</strong> — EFF が開発。Linux サーバで最もよく使われるクライアント。</li>
+        <li><strong>acme.sh</strong> — シェルスクリプト製。DNS-01 チャレンジの自動化に強い。</li>
+        <li><strong>Caddy</strong> — Web サーバ自体が ACME クライアントを内蔵し、起動時に自動取得・更新。</li>
+        <li><strong>cert-manager</strong> — Kubernetes 向け。クラスタ内の証明書を ACME で自動管理。</li>
+      </ul>
+
+      <h2>Sectigo の ACME 対応</h2>
+      <p>
+        Sectigo は自社の証明書管理プラットフォーム <strong>Sectigo Certificate Manager (SCM)</strong> で
+        ACME プロトコルをサポートしています。
+        SCM の ACME 機能を使うと、Let's Encrypt と同じ certbot などのクライアントから
+        Sectigo の商用 OV/EV 証明書を自動発行・更新できます。
+      </p>
+      <p>
+        Let's Encrypt との主な違いは以下のとおりです。
+      </p>
+      <ul>
+        <li><strong>証明書の種類</strong> — Let's Encrypt は DV のみ。Sectigo は DV に加え、組織検証(OV)・拡張検証(EV)も発行可能です(ただし OV/EV は人手による審査があるため完全自動化はできません)。</li>
+        <li><strong>有効期限</strong> — Let's Encrypt は 90 日固定。Sectigo は最大 398 日の証明書を発行できます(ACME 経由の場合は CA の設定に依存)。</li>
+        <li><strong>エンタープライズ機能</strong> — 部署単位のポリシー適用・監査ログ・インベントリ管理など、大規模組織向けの管理機能があります。</li>
+      </ul>
+      <p>SCM の ACME エンドポイントは組織ごとに払い出され、<code>externalAccountBinding</code> で SCM アカウントと紐付けます。</p>
+
+      <pre><code># certbot で Sectigo SCM の ACME エンドポイントを使う例
+certbot certonly \
+  --agree-tos \
+  --email admin@example.com \
+  --preferred-challenges dns-01 \
+  --dns-route53 \
+  --server https://acme.sectigo.com/v2/OV \
+  --eab-kid  &lt;SCM が発行した EAB Key ID&gt; \
+  --eab-hmac-key &lt;SCM が発行した EAB HMAC Key&gt; \
+  -d "*.example.com"</code></pre>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://datatracker.ietf.org/doc/html/rfc8555" rel="noopener">RFC 8555 — Automatic Certificate Management Environment (ACME) (IETF)</a></li>
+          <li><a href="https://docs.sectigo.com/scm/scm-administrator/understanding-acme-endpoints" rel="noopener">Understanding ACME endpoints — Sectigo Certificate Manager Documentation</a></li>
+          <li><a href="https://www.sectigo.com/resource-library/sectigo-adds-acme-protocol-support-in-certificate-manager-platform-to-automate-ssl-lifecycle-management" rel="noopener">Sectigo Adds ACME Protocol Support in Certificate Manager Platform (Sectigo 公式)</a></li>
+          <li><a href="https://www.sectigo.com/enterprise-solutions/certificate-manager/integrations-automated-certificate-management-environment-acme" rel="noopener">ACME Certificate Management Integration — Sectigo 公式</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← misc の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
