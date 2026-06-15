@@ -1,5 +1,13 @@
 [
   {
+    "title": "ACME プロトコルとは — TLS 証明書の自動管理プロトコル",
+    "category": "misc",
+    "path": "misc/acme-protocol-overview.html",
+    "date": "2026-06-15",
+    "summary": "ACME(RFC 8555)は TLS 証明書の取得・更新・失効を自動化する標準プロトコルで、Sectigo を含む多くの商用 CA が対応しており、手作業の証明書管理を排除できます。",
+    "tags": ["ACME", "RFC 8555", "証明書", "Sectigo", "TLS", "Let's Encrypt"]
+  },
+  {
     "title": "mTLS(相互 TLS 認証)とは何か",
     "category": "misc",
     "path": "misc/what-is-mtls.html",
