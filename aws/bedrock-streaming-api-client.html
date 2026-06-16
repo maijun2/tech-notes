@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amazon Bedrock ストリーミング API クライアントとは | maijun の技術質問ノート</title>
+  <meta name="description" content="bedrock-runtime に InvokeModelWithResponseStream / ConverseStream を呼び、生成トークンをイベントストリームとして逐次受け取るクライアントで、チャットの体感速度(TTFT 短縮)を改善する用途が中心です。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Amazon Bedrock ストリーミング API クライアントとは">
+  <meta property="og:description" content="bedrock-runtime に InvokeModelWithResponseStream / ConverseStream を呼び、生成トークンをイベントストリームとして逐次受け取るクライアントで、チャットの体感速度(TTFT 短縮)を改善する用途が中心です。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/bedrock-streaming-api-client">
+  <meta property="og:url" content="https://notes.maijun.net/aws/bedrock-streaming-api-client">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Amazon%20Bedrock%20%E3%82%B9%E3%83%88%E3%83%AA%E3%83%BC%E3%83%9F%E3%83%B3%E3%82%B0%20API%20%E3%82%AF%E3%83%A9%E3%82%A4%E3%82%A2%E3%83%B3%E3%83%88%E3%81%A8%E3%81%AF">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-06-16">2026-06-16</time>
+      </p>
+      <h1>Amazon Bedrock ストリーミング API クライアントとは</h1>
+
+      <div class="lead">
+        <p>Amazon Bedrock の「ストリーミング API クライアント」とは、<code>bedrock-runtime</code> エンドポイントに対して <code>InvokeModelWithResponseStream</code> または <code>ConverseStream</code> を呼び出し、モデルが生成するトークンを<strong>最終応答を待たずに逐次受け取る</strong>クライアントのことです。</p>
+        <p>レスポンスは HTTP の <code>application/vnd.amazon.eventstream</code>(イベントストリーム)で返り、SDK が <code>messageStart</code> → <code>contentBlockDelta</code> → <code>messageStop</code> → <code>metadata</code> という一連のイベントに分解します。チャットの体感速度(最初の文字が出るまでの時間=TTFT の短縮)を改善するのが主な狙いです。</p>
+      </div>
+
+      <h2>2 つの API ファミリーと、そのストリーミング版</h2>
+      <p>Bedrock の推論 API には 2 系統があり、それぞれに同期版とストリーミング版があります。</p>
+      <ul>
+        <li><strong>Invoke 系</strong>: モデル固有のリクエストボディを使う。<code>InvokeModel</code>(同期・単一応答)と <code>InvokeModelWithResponseStream</code>(ストリーミング)。</li>
+        <li><strong>Converse 系</strong>: モデル非依存の統一インターフェース。<code>Converse</code>(同期)と <code>ConverseStream</code>(ストリーミング)。<strong>1 度書いたコードを別モデルでも使い回せる</strong>のが利点で、新規実装では Converse 系が推奨です。</li>
+      </ul>
+      <p>モデルがストリーミングに対応しているかは、<code>GetFoundationModel</code> を呼んで <code>responseStreamingSupported</code> フィールドを見れば判定できます。</p>
+
+      <h2>イベントストリームの流れ(ConverseStream)</h2>
+      <p><code>ConverseStream</code> のレスポンスは、決まった順序のイベント列です。<code>contentBlockIndex</code> で各コンテンツブロックを対応付けます。</p>
+
+      <svg viewBox="0 0 720 160" width="100%" role="img" aria-label="ConverseStream のイベント順序の図" style="max-width:720px">
+        <g font-family="sans-serif" font-size="13" text-anchor="middle">
+          <rect x="10"  y="60" width="110" height="40" rx="6" fill="#eef3fb" stroke="#3b6ea5"/>
+          <text x="65"  y="85">messageStart</text>
+          <rect x="140" y="40" width="150" height="80" rx="6" fill="#fdf2e0" stroke="#c9882a"/>
+          <text x="215" y="68">contentBlockDelta</text>
+          <text x="215" y="88" font-size="11">text / reasoning</text>
+          <text x="215" y="104" font-size="11">/ toolUse (×N)</text>
+          <rect x="310" y="60" width="120" height="40" rx="6" fill="#eef3fb" stroke="#3b6ea5"/>
+          <text x="370" y="85">messageStop</text>
+          <rect x="450" y="50" width="130" height="60" rx="6" fill="#e7f5ec" stroke="#3a9d5d"/>
+          <text x="515" y="76">metadata</text>
+          <text x="515" y="94" font-size="11">usage / trace</text>
+          <line x1="120" y1="80" x2="138" y2="80" stroke="#888" stroke-width="2" marker-end="url(#a)"/>
+          <line x1="290" y1="80" x2="308" y2="80" stroke="#888" stroke-width="2" marker-end="url(#a)"/>
+          <line x1="430" y1="80" x2="448" y2="80" stroke="#888" stroke-width="2" marker-end="url(#a)"/>
+        </g>
+        <defs>
+          <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#888"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <ul>
+        <li><code>messageStart</code>: メッセージの開始。<code>role</code>(assistant)を含む。1 応答に 1 回。</li>
+        <li><code>contentBlockStart</code> / <code>contentBlockStop</code>: 各コンテンツブロックの開始・終了。<code>contentBlockIndex</code> 付き。</li>
+        <li><code>contentBlockDelta</code>: 部分生成データ。<code>text</code>(部分テキスト)、<code>reasoningContent</code>(思考の途中)、<code>toolUse</code>(ツール入力 JSON の断片)のいずれか。</li>
+        <li><code>messageStop</code>: メッセージ終了。<code>stopReason</code> を含む。1 応答に 1 回。</li>
+        <li><code>metadata</code>: <code>usage</code>(トークン数)、<code>metrics</code>(レイテンシ)、ガードレールの <code>trace</code> 情報。1 応答に 1 回。</li>
+      </ul>
+
+      <h2>ストリーム中に届きうる例外イベント</h2>
+      <p>ストリーミングでは、接続後の途中でもエラーがイベントとして流れてきます。クライアントはこれらを受信ループ内で個別にハンドリングする必要があります。</p>
+      <ul>
+        <li><code>internalServerException</code>: サーバ内部エラー。</li>
+        <li><code>modelStreamErrorException</code>: ストリーム処理中にモデル側で発生したエラー。</li>
+        <li><code>validationException</code>: 入力が不正。</li>
+        <li><code>throttlingException</code>: スロットリング(レート/クォータ超過)。指数バックオフで再試行する。</li>
+        <li><code>serviceUnavailableException</code>: サービス一時利用不可。</li>
+      </ul>
+
+      <h2>呼び出し例(boto3 / ConverseStream)</h2>
+      <p>必要な IAM 権限は <code>bedrock:InvokeModelWithResponseStream</code> です(<code>ConverseStream</code> も内部的にこのアクション権限を要求します)。</p>
+      <pre><code>import boto3
+
+client = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+resp = client.converse_stream(
+    modelId="anthropic.claude-sonnet-4-6",  # ストリーミング対応モデル
+    messages=[{"role": "user", "content": [{"text": "ストリーミングの利点を 3 行で"}]}],
+    inferenceConfig={"maxTokens": 512, "temperature": 0.3},
+)
+
+for event in resp["stream"]:
+    if "contentBlockDelta" in event:
+        delta = event["contentBlockDelta"]["delta"]
+        if "text" in delta:
+            print(delta["text"], end="", flush=True)   # 逐次表示
+    elif "messageStop" in event:
+        print("\n[stopReason]", event["messageStop"]["stopReason"])
+    elif "metadata" in event:
+        print("[usage]", event["metadata"]["usage"])
+</code></pre>
+
+      <p>低レベルの <code>InvokeModelWithResponseStream</code> を使う場合は、各 <code>chunk</code> イベントの <code>bytes</code> がモデル固有形式の JSON 断片になります。Converse 系の方がモデル差を吸収してくれるため、まず <code>ConverseStream</code> を検討するとよいです。</p>
+
+      <h2>具体的なユースケース</h2>
+      <ul>
+        <li><strong>チャットボット / アシスタント UI</strong>: 生成中のテキストをタイプライター表示し、TTFT を縮めて体感速度を改善する。最も一般的な用途です。</li>
+        <li><strong>長文生成(記事・要約・コード)</strong>: 数千トークンの応答でも、ユーザーは数百ミリ秒で読み始められ、離脱を防げます。</li>
+        <li><strong>ツール使用を伴うエージェント</strong>: <code>toolUse</code> デルタで「いまどのツールを、どんな引数で呼ぼうとしているか」を途中表示し、進捗を可視化できます。</li>
+        <li><strong>推論(reasoning)モデルの思考過程の提示</strong>: <code>reasoningContent</code> デルタを使い、回答に至る考え方を逐次見せられます。</li>
+        <li><strong>音声合成パイプライン</strong>: 確定したテキスト片を順次 TTS に渡すことで、生成完了を待たずに発話を開始できます。</li>
+      </ul>
+      <p>逆に、応答全体を一括で後段処理する(JSON を完全に受け取ってからパースする等)バッチ的な用途では、ストリーミングの利点は薄く、同期の <code>InvokeModel</code> / <code>Converse</code> の方が実装がシンプルです。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_InvokeModelWithResponseStream.html" rel="noopener">InvokeModelWithResponseStream - Amazon Bedrock API Reference</a></li>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html" rel="noopener">ConverseStream - Amazon Bedrock API Reference</a></li>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStreamMetadataEvent.html" rel="noopener">ConverseStreamMetadataEvent - Amazon Bedrock API Reference</a></li>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/inference-api.html" rel="noopener">Submit prompts and generate responses using the API - Amazon Bedrock User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/boto3/latest/reference/services/bedrock-runtime/client/converse_stream.html" rel="noopener">converse_stream - Boto3 documentation</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

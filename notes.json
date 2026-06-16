@@ -1,5 +1,13 @@
 [
   {
+    "title": "Amazon Bedrock ストリーミング API クライアントとは",
+    "category": "aws",
+    "path": "aws/bedrock-streaming-api-client.html",
+    "date": "2026-06-16",
+    "summary": "bedrock-runtime に InvokeModelWithResponseStream / ConverseStream を呼び、生成トークンをイベントストリームとして逐次受け取るクライアントで、チャットの体感速度(TTFT 短縮)を改善する用途が中心です。",
+    "tags": ["Bedrock", "ConverseStream", "ストリーミング", "生成AI", "TTFT"]
+  },
+  {
     "title": "Oracle AI Database Private Agent Factory とは",
     "category": "oci",
     "path": "oci/oracle-private-agent-factory.html",
