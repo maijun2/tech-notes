@@ -1,5 +1,13 @@
 [
   {
+    "title": "Oracle AI Database Private Agent Factory とは",
+    "category": "oci",
+    "path": "oci/oracle-private-agent-factory.html",
+    "date": "2026-06-16",
+    "summary": "Private Agent Factory は Oracle AI Database 26ai に統合されたノーコードの AI エージェント工場で、データベースネイティブにエージェントを構築し REST API として公開できます。",
+    "tags": ["Oracle AI Database", "Private Agent Factory", "AI Agent", "MCP", "Select AI", "26ai"]
+  },
+  {
     "title": "ACME プロトコルとは — TLS 証明書の自動管理プロトコル",
     "category": "misc",
     "path": "misc/acme-protocol-overview.html",

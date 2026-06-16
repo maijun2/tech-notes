@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle AI Database Private Agent Factory とは | maijun の技術質問ノート</title>
+  <meta name="description" content="Oracle AI Database 26ai に統合されたノーコードの AI エージェント工場で、データベースネイティブにエージェントを構築し REST API として公開できます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Oracle AI Database Private Agent Factory とは">
+  <meta property="og:description" content="Oracle AI Database 26ai に統合されたノーコードの AI エージェント工場で、データベースネイティブにエージェントを構築し REST API として公開できます。">
+  <link rel="canonical" href="https://notes.maijun.net/oci/oracle-private-agent-factory">
+  <meta property="og:url" content="https://notes.maijun.net/oci/oracle-private-agent-factory">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Oracle%20AI%20Database%20Private%20Agent%20Factory%20%E3%81%A8%E3%81%AF">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time data-pagefind-meta="date" datetime="2026-06-16">2026-06-16</time>
+      </p>
+      <h1>Oracle AI Database Private Agent Factory とは</h1>
+
+      <div class="lead">
+        <p>Private Agent Factory は、Oracle AI Database 26ai に統合された<strong>ノーコードの「AI エージェント工場」</strong>です。ブラウザ上のドラッグ&amp;ドロップ Canvas(Agent Builder)でエージェントやワークフローを設計し、公開すると<strong>専用コンテナとして起動して REST API から呼び出せる</strong>ようになります。</p>
+        <p>最大の特徴は<strong>データベースネイティブ</strong>であること。データ・ベクトルストア・MCP ツール・実行ランタイム・監査ログがすべて自社テナンシ内で完結し、企業データを外部へ持ち出さずにエージェント的 AI を実現します。</p>
+      </div>
+
+      <h2>何を解決するのか</h2>
+      <p>エージェント的 AI(agentic AI)は、多段かつ自律的なワークフローが、リアルタイムで一貫した企業データへアクセスし続けることを前提とします。従来は外部のベクトルストアや API 呼び出しがボトルネック・ガバナンスリスクになりがちでした。Private Agent Factory は<strong>データ移動をなくし、データベース既存のアクセス制御をそのまま使う</strong>ことで、セキュリティ・ガバナンス・性能を両立させる設計になっています。マルチクラウドおよびオンプレミスの双方に対応します。</p>
+
+      <h2>アーキテクチャ</h2>
+      <p>設計時(design time)と実行時(runtime)を分離した構成です。作成者はファクトリコンテナが提供するブラウザ UI でフローを組み、その定義は YAML として保存されます。公開(publish)すると、各エージェントが自前のコンテナとして起動し、Oracle AI Database に接続して REST エンドポイントを公開します。</p>
+
+      <svg viewBox="0 0 760 430" role="img" aria-label="Private Agent Factory のアーキテクチャ図" style="max-width:100%;height:auto;border:1px solid var(--border,#ddd);border-radius:8px;background:#fff">
+        <rect x="10" y="10" width="740" height="410" fill="none" stroke="#c33" stroke-dasharray="6 4" rx="10"/>
+        <text x="24" y="34" font-size="13" fill="#c33">自社テナンシ / 自社環境(データは外に出ない)</text>
+
+        <rect x="30" y="50" width="320" height="70" fill="#eef4ff" stroke="#3b6" rx="8"/>
+        <text x="46" y="78" font-size="14" fill="#222">Factory コンテナ</text>
+        <text x="46" y="100" font-size="12" fill="#555">Agent Builder(ノーコード Canvas)→ YAML 定義</text>
+
+        <rect x="30" y="150" width="320" height="80" fill="#fff6e6" stroke="#e89" rx="8"/>
+        <text x="46" y="178" font-size="14" fill="#222">公開された各エージェント = 個別コンテナ</text>
+        <text x="46" y="200" font-size="12" fill="#555">REST エンドポイントを公開</text>
+        <text x="46" y="218" font-size="12" fill="#555">→ 業務アプリから呼び出し</text>
+
+        <line x1="190" y1="120" x2="190" y2="150" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="200" y="140" font-size="11" fill="#888">publish</text>
+
+        <rect x="400" y="50" width="330" height="80" fill="#eafaf0" stroke="#3b6" rx="8"/>
+        <text x="416" y="76" font-size="14" fill="#222">Oracle AI Database 26ai</text>
+        <text x="416" y="96" font-size="12" fill="#555">ベクトルストア / ハイブリッド検索</text>
+        <text x="416" y="114" font-size="12" fill="#555">Select AI(in-DB)/ 記憶 / 監査・MCP サーバ</text>
+
+        <rect x="400" y="150" width="160" height="80" fill="#f3f0fa" stroke="#96b" rx="8"/>
+        <text x="416" y="176" font-size="14" fill="#222">MCP サーバ群</text>
+        <text x="416" y="196" font-size="12" fill="#555">任意の API /</text>
+        <text x="416" y="214" font-size="12" fill="#555">CRM / 自作ツール</text>
+
+        <rect x="572" y="150" width="158" height="80" fill="#fdeef2" stroke="#d68" rx="8"/>
+        <text x="588" y="176" font-size="14" fill="#222">LLM / 埋め込み</text>
+        <text x="588" y="196" font-size="12" fill="#555">private: vLLM/Ollama</text>
+        <text x="588" y="214" font-size="12" fill="#555">public: OCI GenAI 等</text>
+
+        <line x1="350" y1="190" x2="400" y2="190" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="350" y1="175" x2="400" y2="100" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="480" y1="150" x2="500" y2="130" stroke="#888" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#888"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <h3>主な構成要素</h3>
+      <ul>
+        <li><strong>Agent Builder(ノーコード Canvas)</strong>: MCP サーバ・ドキュメント入力・DB 接続・ユーザーチャット入力・プロンプト・LLM 選択・Select AI ノードをワイヤリングして組む。フローは内部的に <strong>YAML 定義</strong>化される(Oracle の宣言的言語 Open Agent Spec 系)。</li>
+        <li><strong>Oracle AI Database 26ai</strong>: データ基盤であると同時に <strong>MCP サーバ</strong>としても振る舞う。ベクトルストア・ハイブリッド検索、エージェントの記憶、監査証跡を保持。</li>
+        <li><strong>Select AI 連携</strong>: profiles / engines / RAG・SQL ツール / teams を使い、推論を社内データにグラウンディング(in-DB AI 実行)。</li>
+        <li><strong>MCP 統合</strong>: MCP でラップできるサービスなら何でもツール化できる(任意 API、CRM、監視ツール、自作マイクロサービス等)。認証は Bearer / API キー / OAuth を UI で設定。</li>
+        <li><strong>プリビルトエージェント</strong>: Database Knowledge Agent、Structured Data Analysis Agent、Deep Data Research Agent など(RAG・構造化データ分析・深掘り調査用)を同梱。</li>
+        <li><strong>マルチエージェント・オーケストレーション</strong>: スーパーバイザーエージェントがリクエストを分類し、専門サブエージェントへ委譲。コンテキスト受け渡しやエンドポイント管理はファクトリが裏で処理。</li>
+        <li><strong>ランタイム</strong>: コンテナは <strong>Podman / Podman Compose</strong>(rootless)で動作。スケールする本番運用では Kubernetes で管理。LLM・埋め込みモデルは供給コンテナ内でプライベート実行、または公開エンドポイント呼び出しを選べる。</li>
+      </ul>
+
+      <h2>実装(導入)の手順</h2>
+
+      <h3>1. 前提条件を満たす</h3>
+      <ul>
+        <li>Oracle AI Database 26ai のインスタンスへのアクセス</li>
+        <li>Agent Factory 管理用の<strong>専用 DB ユーザー</strong>(本番データ用とは分ける)</li>
+        <li>Database Knowledge Assistant を使う場合、ユーザー表領域は <strong>BIGFILE かつ 100GB 以上</strong></li>
+        <li>本番モードでは DB パラメータ <code>max_string_size = EXTENDED</code></li>
+        <li><strong>LLM エンドポイント</strong>(vLLM / OpenAI / Ollama / Google / OCI GenAI などに対応)</li>
+        <li><strong>Podman / Podman Compose</strong>(非 root ユーザーで rootless 実行)。Linux / macOS に対応</li>
+      </ul>
+
+      <h3>2. インストールモードを選ぶ</h3>
+      <ul>
+        <li><strong>Quickstart モード</strong>: Oracle AI Database 26ai Free をコンテナでローカル自動構築。DB セットアップ不要ですぐ試せる(UI は既定 8080 番、Free DB は 1521 番ポート)。</li>
+        <li><strong>Production モード</strong>: DB と LLM エンドポイントを手動設定し、既存環境に接続。</li>
+      </ul>
+
+      <h3>3. デプロイ</h3>
+      <p>ステージング領域に展開される <strong>Makefile</strong> でデプロイ一式を管理してコンテナ群を起動します。OCI Marketplace からのインストールも可能です。既定で <strong>ポート 8080</strong> の Agent Builder UI にアクセスできます。</p>
+      <pre><code># 概念イメージ(実際のコマンド・引数は公式ドキュメントの最新版を参照)
+# 1) 配布物を取得し、ステージング領域に展開
+# 2) config の DB / LLM エンドポイントを設定
+# 3) Makefile 経由でビルド〜起動
+make deploy
+# → http://localhost:8080 で Agent Builder にアクセス</code></pre>
+
+      <h3>4. エージェントを構築する</h3>
+      <ol>
+        <li><strong>Settings → MCP Servers</strong> でエンドポイントと認証を登録すると、ツールが自動でディスカバリされる。</li>
+        <li>Canvas に MCP Server ノード・DB 接続・ドキュメント入力・LLM・Select AI ノードを配置して接続する。</li>
+        <li>複数エージェントは「スーパーバイザー + 専門サブエージェント」構成で組む。</li>
+      </ol>
+
+      <h3>5. テスト → 公開 → 連携</h3>
+      <ul>
+        <li><strong>Playground</strong> で動作をテストする。</li>
+        <li><strong>Publish</strong> すると専用コンテナが起動し、<strong>セキュア REST API</strong> として公開される。</li>
+        <li>業務アプリからそのエンドポイントを呼び出して組み込む。</li>
+      </ul>
+
+      <h2>まとめ</h2>
+      <p>Private Agent Factory は「ノーコードで素早く作れる」点と「データベースネイティブでガバナンスを担保する」点を両立した、エンタープライズ向けのエージェント基盤です。試すだけなら Quickstart モードで DB 込みのコンテナを立ち上げ、本番では既存の Oracle AI Database 26ai と社内 LLM へ接続する、という段階的な導入がしやすい構成になっています。なお製品は比較的新しく、要件やコマンドは更新されるため、導入前には必ず公式ドキュメント原文(特に Prerequisites / Installation 各ページ)で最新情報を確認してください。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/en/database/oracle/agent-factory/25.3/paias/introduction.html" rel="noopener">Introduction to Agent Factory — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en/database/oracle/agent-factory/25.3/paias/prerequisites.html" rel="noopener">Deployment Overview(Prerequisites)— Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en/database/oracle/agent-factory/25.3/paias/setup-linux.html" rel="noopener">Installation on Linux — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en/database/oracle/agent-factory/25.3/paias/install-oci-marketplace.html" rel="noopener">Installation from OCI Marketplace — Oracle Docs</a></li>
+          <li><a href="https://blogs.oracle.com/database/introducing-private-agent-factory-unlocking-the-agentic-ai-potential-in-enterprises-with-oracle-ai-database-26ai" rel="noopener">Introducing Private Agent Factory — Oracle Blog</a></li>
+          <li><a href="https://www.oracle.com/news/announcement/oracle-unveils-ai-database-agentic-innovations-for-business-data-2026-03-24/" rel="noopener">Oracle Unveils AI Database Agentic Innovations — プレスリリース</a></li>
+          <li><a href="https://github.com/oracle/agent-spec" rel="noopener">Open Agent Spec(GitHub: oracle/agent-spec)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../oci.html">← OCI の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
