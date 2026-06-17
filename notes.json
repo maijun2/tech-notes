@@ -1,5 +1,13 @@
 [
   {
+    "title": "スガキコシステムズとは ― スガキヤの歴史と創業エピソード",
+    "category": "misc",
+    "path": "misc/sugakico-systems.html",
+    "date": "2026-06-17",
+    "summary": "スガキコシステムズは東海地方を中心に「甘党とラーメンの店 スガキヤ」を展開する名古屋発祥の外食チェーン企業で、源流は 1946 年に菅木家が栄で開いた甘党の店にあります。",
+    "tags": ["スガキヤ", "スガキコシステムズ", "寿がきや", "名古屋", "ラーメン", "企業史"]
+  },
+  {
     "title": "Amazon Bedrock ストリーミング API クライアントとは",
     "category": "aws",
     "path": "aws/bedrock-streaming-api-client.html",
