@@ -1,5 +1,13 @@
 [
   {
+    "title": "AWS Agent Squad のアーキテクチャ構成とユースケース",
+    "category": "aws",
+    "path": "aws/aws-agent-squad-architecture.html",
+    "date": "2026-06-17",
+    "summary": "Agent Squad は複数の AI エージェントを束ねて 1 つの会話をさばく軽量な OSS フレームワークで、中核は Orchestrator・Classifier・Agents・Storage の 4 要素です。",
+    "tags": ["Agent Squad", "Multi-Agent", "Bedrock", "AI Agent", "Orchestrator", "生成AI"]
+  },
+  {
     "title": "スガキコシステムズとは ― スガキヤの歴史と創業エピソード",
     "category": "misc",
     "path": "misc/sugakico-systems.html",
