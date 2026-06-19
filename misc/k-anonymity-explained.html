@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-匿名性とは — データのプライバシー保護をわかりやすく図解 | maijun の技術質問ノート</title>
+  <meta name="description" content="K-匿名性とは、準識別子の組み合わせで見たとき各レコードが必ず他の k-1 件以上と区別できない状態にし、個人の特定を防ぐデータ匿名化の基準です。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="K-匿名性とは — データのプライバシー保護をわかりやすく図解">
+  <meta property="og:description" content="K-匿名性とは、準識別子の組み合わせで見たとき各レコードが必ず他の k-1 件以上と区別できない状態にし、個人の特定を防ぐデータ匿名化の基準です。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/k-anonymity-explained">
+  <meta property="og:url" content="https://notes.maijun.net/misc/k-anonymity-explained">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=K-%E5%8C%BF%E5%90%8D%E6%80%A7%E3%81%A8%E3%81%AF%20%E2%80%94%20%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E3%83%97%E3%83%A9%E3%82%A4%E3%83%90%E3%82%B7%E3%83%BC%E4%BF%9D%E8%AD%B7%E3%82%92%E3%82%8F%E3%81%8B%E3%82%8A%E3%82%84%E3%81%99%E3%81%8F%E5%9B%B3%E8%A7%A3">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-06-19">2026-06-19</time>
+      </p>
+      <h1>K-匿名性とは — データのプライバシー保護をわかりやすく図解</h1>
+
+      <div class="lead">
+        <p><strong>K-匿名性(k-anonymity)とは、「準識別子(quasi-identifier)の組み合わせで見たときに、どのレコードも必ず他の k-1 件以上と同じ値になり、区別できない」ようにデータを加工する匿名化の基準です。</strong>
+        つまり同じ属性の組を持つグループ(同値類)の人数が常に k 人以上いれば、外部データと突き合わせても「これは誰の行か」を 1/k 未満には絞り込めません。基盤モデルの学習データなど、個人を含むデータセットを公開・利用する前の前処理として使われ、l-diversity・t-closeness といった拡張や差分プライバシーと組み合わせて使われます。</p>
+      </div>
+
+      <h2>3 種類の属性に分けて考える</h2>
+      <p>K-匿名性を理解する第一歩は、データの列(属性)を次の 3 つに分けることです。</p>
+      <ul>
+        <li><strong>識別子(identifier)</strong>: 氏名・マイナンバー・メールアドレスなど、それ単体で個人を特定できる列。匿名化では原則として削除します。</li>
+        <li><strong>準識別子(quasi-identifier)</strong>: 郵便番号・生年月日(年齢)・性別など、それ単体では特定できないが、<em>複数を組み合わせる</em>と他の公開データ(選挙人名簿など)と突き合わせて個人を特定できてしまう列。K-匿名性が守る対象はここです。</li>
+        <li><strong>センシティブ属性(sensitive attribute)</strong>: 病名・年収・購買履歴など、分析のために残したいが、本人と結びつくと困る列。</li>
+      </ul>
+      <p>K-匿名性は「準識別子の組み合わせで人を絞り込ませない」ことを保証します。準識別子が同じ値を持つレコードの集まりを<strong>同値類(equivalence class)</strong>と呼び、その全ての同値類のサイズが k 以上であるとき、そのテーブルは「k-匿名」であると言います。</p>
+
+      <h2>図解:k=1(危険)から k=3(安全)へ</h2>
+      <p>下の左の表はそのまま公開すると、郵便番号・年齢・性別の組が一意になり個人が特定できる状態です(=同値類サイズ 1)。これを<strong>一般化(generalization)</strong>=値を粗くする、によって各グループを 3 件以上にまとめると k=3 を満たします。</p>
+
+      <svg viewBox="0 0 720 430" width="100%" role="img" aria-label="k-匿名化の前後比較。左は準識別子が一意で特定可能、右は一般化により各同値類が3件以上にまとまり k=3 を満たす図" style="max-width:720px; height:auto; font-family:sans-serif;">
+        <style>
+          .t { font-size: 13px; }
+          .h { font-size: 13px; font-weight: bold; }
+          .cap { font-size: 14px; font-weight: bold; }
+          .sens { fill: #b5341a; }
+          .box { fill: #fff; stroke: #bbb; }
+          .gA { fill: #eef4ff; }
+          .gB { fill: #fff4e6; }
+          .danger { fill: #fde7e7; stroke: #e0a0a0; }
+        </style>
+
+        <!-- 左:元データ -->
+        <text x="10" y="22" class="cap">元データ(k=1:特定できてしまう)</text>
+        <!-- header -->
+        <rect x="10" y="32" width="80" height="26" class="box danger"/>
+        <rect x="90" y="32" width="55" height="26" class="box danger"/>
+        <rect x="145" y="32" width="50" height="26" class="box danger"/>
+        <rect x="195" y="32" width="120" height="26" class="box"/>
+        <text x="18" y="50" class="h">郵便番号</text>
+        <text x="98" y="50" class="h">年齢</text>
+        <text x="151" y="50" class="h">性別</text>
+        <text x="203" y="50" class="h sens">病名(残す)</text>
+
+        <!-- rows -->
+        <g class="t">
+          <rect x="10" y="58" width="80" height="24" class="box"/><rect x="90" y="58" width="55" height="24" class="box"/><rect x="145" y="58" width="50" height="24" class="box"/><rect x="195" y="58" width="120" height="24" class="box"/>
+          <text x="18" y="74">123-0011</text><text x="98" y="74">29</text><text x="151" y="74">男</text><text x="203" y="74" class="sens">胃炎</text>
+
+          <rect x="10" y="82" width="80" height="24" class="box"/><rect x="90" y="82" width="55" height="24" class="box"/><rect x="145" y="82" width="50" height="24" class="box"/><rect x="195" y="82" width="120" height="24" class="box"/>
+          <text x="18" y="98">123-0023</text><text x="98" y="98">34</text><text x="151" y="98">男</text><text x="203" y="98" class="sens">糖尿病</text>
+
+          <rect x="10" y="106" width="80" height="24" class="box"/><rect x="90" y="106" width="55" height="24" class="box"/><rect x="145" y="106" width="50" height="24" class="box"/><rect x="195" y="106" width="120" height="24" class="box"/>
+          <text x="18" y="122">123-0099</text><text x="98" y="122">38</text><text x="151" y="122">男</text><text x="203" y="122" class="sens">胃炎</text>
+
+          <rect x="10" y="130" width="80" height="24" class="box"/><rect x="90" y="130" width="55" height="24" class="box"/><rect x="145" y="130" width="50" height="24" class="box"/><rect x="195" y="130" width="120" height="24" class="box"/>
+          <text x="18" y="146">456-0007</text><text x="98" y="146">52</text><text x="151" y="146">女</text><text x="203" y="146" class="sens">高血圧</text>
+
+          <rect x="10" y="154" width="80" height="24" class="box"/><rect x="90" y="154" width="55" height="24" class="box"/><rect x="145" y="154" width="50" height="24" class="box"/><rect x="195" y="154" width="120" height="24" class="box"/>
+          <text x="18" y="170">456-0041</text><text x="98" y="170">55</text><text x="151" y="170">女</text><text x="203" y="170" class="sens">喘息</text>
+
+          <rect x="10" y="178" width="80" height="24" class="box"/><rect x="90" y="178" width="55" height="24" class="box"/><rect x="145" y="178" width="50" height="24" class="box"/><rect x="195" y="178" width="120" height="24" class="box"/>
+          <text x="18" y="194">456-0088</text><text x="98" y="194">59</text><text x="151" y="194">女</text><text x="203" y="194" class="sens">高血圧</text>
+        </g>
+        <text x="10" y="222" class="t" fill="#b5341a">↑ 各行が一意 → 外部データと突合で個人を特定できる</text>
+
+        <!-- 矢印 -->
+        <text x="10" y="262" class="cap">一般化(値を粗くする)で同値類を 3 件以上に →</text>
+
+        <!-- 右:k=3 -->
+        <text x="10" y="296" class="cap">k=3 を満たすデータ(どの行も 3 人で区別不能)</text>
+        <rect x="10" y="306" width="90" height="26" class="box"/>
+        <rect x="100" y="306" width="60" height="26" class="box"/>
+        <rect x="160" y="306" width="45" height="26" class="box"/>
+        <rect x="205" y="306" width="110" height="26" class="box"/>
+        <text x="18" y="324" class="h">郵便番号</text>
+        <text x="108" y="324" class="h">年齢</text>
+        <text x="166" y="324" class="h">性別</text>
+        <text x="213" y="324" class="h sens">病名</text>
+
+        <g class="t">
+          <!-- group A (k=3) -->
+          <rect x="10" y="332" width="90" height="24" class="box gA"/><rect x="100" y="332" width="60" height="24" class="box gA"/><rect x="160" y="332" width="45" height="24" class="box gA"/><rect x="205" y="332" width="110" height="24" class="box"/>
+          <text x="18" y="348">123-00**</text><text x="108" y="348">20–39</text><text x="166" y="348">男</text><text x="213" y="348" class="sens">胃炎</text>
+
+          <rect x="10" y="356" width="90" height="24" class="box gA"/><rect x="100" y="356" width="60" height="24" class="box gA"/><rect x="160" y="356" width="45" height="24" class="box gA"/><rect x="205" y="356" width="110" height="24" class="box"/>
+          <text x="18" y="372">123-00**</text><text x="108" y="372">20–39</text><text x="166" y="372">男</text><text x="213" y="372" class="sens">糖尿病</text>
+
+          <rect x="10" y="380" width="90" height="24" class="box gA"/><rect x="100" y="380" width="60" height="24" class="box gA"/><rect x="160" y="380" width="45" height="24" class="box gA"/><rect x="205" y="380" width="110" height="24" class="box"/>
+          <text x="18" y="396">123-00**</text><text x="108" y="396">20–39</text><text x="166" y="396">男</text><text x="213" y="396" class="sens">胃炎</text>
+        </g>
+        <rect x="6" y="328" width="313" height="80" fill="none" stroke="#4a7fd0" stroke-width="2" stroke-dasharray="4 3"/>
+        <text x="330" y="372" class="t" fill="#2f5fa6">同値類サイズ = 3</text>
+
+        <!-- 右上の注釈 -->
+        <text x="380" y="50" class="t">準識別子(QI)</text>
+        <rect x="380" y="58" width="18" height="14" class="box danger"/>
+        <text x="404" y="70" class="t">= 組み合わせで特定に使える列</text>
+        <text x="380" y="98" class="t sens">センシティブ属性</text>
+        <text x="380" y="118" class="t">= 分析のために残す列</text>
+        <text x="380" y="150" class="t">一般化の例:</text>
+        <text x="392" y="170" class="t">・29 → 「20–39」(範囲化)</text>
+        <text x="392" y="190" class="t">・123-0011 → 「123-00**」(桁マスク)</text>
+      </svg>
+
+      <h2>K-匿名性を実現する代表的な操作</h2>
+      <ul>
+        <li><strong>一般化(generalization)</strong>: 値を粗くしてグループ化する。年齢 29 → 「20–39」、郵便番号の下位桁を「*」にする、など。</li>
+        <li><strong>抑制(suppression)</strong>: どうしても k に届かない外れ値の行や値を削除・伏字にする。</li>
+      </ul>
+      <p>k を大きくするほどプライバシーは強くなりますが、その分だけ値が粗くなり<strong>データの有用性(utility)は下がります</strong>。「プライバシー」と「分析の有用性」のトレードオフを調整するのが運用上の勘所です。</p>
+
+      <h2>K-匿名性の弱点と拡張(l-diversity / t-closeness)</h2>
+      <p>K-匿名性は「準識別子で人を絞り込めない」ことは保証しますが、<strong>センシティブ属性の中身は守りません</strong>。代表的な 2 つの攻撃があります。</p>
+      <ul>
+        <li><strong>均質性攻撃(homogeneity attack)</strong>: ある同値類の k 件が全員「病名=胃炎」だと、誰の行かは分からなくても「この人は胃炎だ」と分かってしまう。</li>
+        <li><strong>背景知識攻撃(background knowledge attack)</strong>: 攻撃者が持つ別の知識(例:「この人は心臓病ではない」)と組み合わせて値を絞り込む。</li>
+      </ul>
+      <p>これを補うために提案されたのが次の拡張です。</p>
+      <ul>
+        <li><strong>l-diversity</strong>: 各同値類の中で、センシティブ属性の値が少なくとも <em>l</em> 種類は「よく表れている」ことを要求し、均質性攻撃を防ぐ。</li>
+        <li><strong>t-closeness</strong>: 各同値類内のセンシティブ属性の分布を、テーブル全体での分布と「距離 t 以内」に近づけ、分布の偏りからの推定を防ぐ。</li>
+      </ul>
+      <p>さらに強い数学的保証を与えるものとして<strong>差分プライバシー(differential privacy)</strong>があり、近年はこちらと併用・代替されることも増えています。K-匿名性系は「公開する表そのものを加工する」アプローチ、差分プライバシーは「集計・学習の過程にノイズを加える」アプローチという違いがあります。</p>
+
+      <h2>基盤モデルのデータセットに適用する文脈</h2>
+      <p>基盤モデル(foundation model)の学習データに個人情報が含まれると、学習済みモデルから個人情報が復元・記憶(memorization)されるリスクがあります。そこで学習前の前処理として、識別子の除去に加えて K-匿名性などの匿名化を適用し、再識別(re-identification)リスクを下げる、という使い方をします。質問の文脈はこの「データセット前処理としてのプライバシー保護手法の一つが K-匿名性」という位置づけです。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://epic.org/wp-content/uploads/privacy/reidentification/Sweeney_Article.pdf" rel="noopener">L. Sweeney, "k-anonymity: A Model for Protecting Privacy", International Journal on Uncertainty, Fuzziness and Knowledge-based Systems, 10(5), 2002</a></li>
+          <li><a href="https://dataprivacylab.org/dataprivacy/projects/kanonymity/kanonymity2.pdf" rel="noopener">L. Sweeney, "Achieving k-Anonymity Privacy Protection Using Generalization and Suppression"(一般化・抑制の解説)</a></li>
+          <li><a href="https://csrc.nist.gov/pubs/sp/800/188/final" rel="noopener">NIST SP 800-188, "De-Identifying Government Datasets: Techniques and Governance"(k-anonymity / l-diversity / t-closeness の整理)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
