@@ -1,5 +1,13 @@
 [
   {
+    "title": "K-匿名性とは — データのプライバシー保護をわかりやすく図解",
+    "category": "misc",
+    "path": "misc/k-anonymity-explained.html",
+    "date": "2026-06-19",
+    "summary": "K-匿名性とは、準識別子の組み合わせで見たとき各レコードが必ず他の k-1 件以上と区別できない状態にし、個人の特定を防ぐデータ匿名化の基準です。",
+    "tags": ["k-anonymity", "プライバシー", "匿名化", "l-diversity", "t-closeness", "差分プライバシー", "基盤モデル"]
+  },
+  {
     "title": "RAG をグラウンディングと呼ぶのはなぜ?",
     "category": "misc",
     "path": "misc/rag-and-grounding.html",
