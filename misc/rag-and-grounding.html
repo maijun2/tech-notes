@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG をグラウンディングと呼ぶのはなぜ? | maijun の技術質問ノート</title>
+  <meta name="description" content="厳密には RAG = grounding ではなく、grounding は「出力を検証可能な外部の事実に結びつける」目的、RAG はそれを実現する代表的な手法です。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="RAG をグラウンディングと呼ぶのはなぜ?">
+  <meta property="og:description" content="厳密には RAG = grounding ではなく、grounding は「出力を検証可能な外部の事実に結びつける」目的、RAG はそれを実現する代表的な手法です。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/rag-and-grounding">
+  <meta property="og:url" content="https://notes.maijun.net/misc/rag-and-grounding">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=RAG%20%E3%82%92%E3%82%B0%E3%83%A9%E3%82%A6%E3%83%B3%E3%83%87%E3%82%A3%E3%83%B3%E3%82%B0%E3%81%A8%E5%91%BC%E3%81%B6%E3%81%AE%E3%81%AF%E3%81%AA%E3%81%9C%3F">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-06-19">2026-06-19</time>
+      </p>
+      <h1>RAG をグラウンディングと呼ぶのはなぜ?</h1>
+
+      <div class="lead">
+        <p>厳密には「RAG = grounding(グラウンディング)」ではありません。Grounding は
+        <strong>LLM の出力を検証可能な外部の事実に結びつける(=接地させる)という目的・概念</strong>で、
+        RAG はその目的を実現する<strong>代表的な手法のひとつ</strong>です。</p>
+        <p>両者がほぼ同義のように使われるのは、(1) RAG が grounding の最も普及した実装だから、
+        (2) Google Cloud などのベンダーが「Grounding」という<strong>機能名</strong>で
+        RAG ベースの仕組みを提供しているから、の 2 点が大きな理由です。</p>
+      </div>
+
+      <h2>言葉の出どころ ― 認知科学の "symbol grounding"</h2>
+      <p>そもそも grounding(接地・根拠づけ)という語は、生成 AI 固有の言葉ではありません。
+      認知科学者 Stevan Harnad が 1990 年に提起した
+      <strong>記号接地問題(Symbol Grounding Problem)</strong>に由来します。これは
+      「形式的な記号操作だけで動くシステムが、その記号(=言葉)に<strong>実世界の意味</strong>を
+      どう結びつけるか」という問いです。Harnad は「中国語の単語を中国語の辞書だけで覚えようとすると、
+      記号から記号へと回り続けて実体に辿り着けない」という例えでこの問題を説明しました。</p>
+      <p>LLM はまさにこの「記号(テキスト)だけで訓練されたシステム」です。学習済みパラメータの中の
+      知識は古くなったり曖昧だったりし、ときに事実無根の文章(hallucination)を生みます。そこで
+      <strong>生成テキストを、検証可能な情報源という「地面」に接地させる</strong>営みを
+      grounding と呼ぶようになりました。語のニュアンスがそのまま生成 AI に持ち込まれた形です。</p>
+
+      <h2>Grounding は「目的」、RAG は「手法」</h2>
+      <p>主要クラウドのドキュメントでも、両者ははっきり区別されています。Google Cloud は
+      grounding を次のように定義しています。</p>
+      <blockquote>
+        <p>生成 AI における grounding とは、モデルの出力を検証可能な情報源に結びつける能力のこと。
+        モデルに特定のデータソースへのアクセスを与えると、grounding がその出力をデータに
+        つなぎ留め(tether)、内容を捏造する可能性を減らす。</p>
+      </blockquote>
+      <p>そして「grounding はしばしば <strong>RAG のような手法</strong>を使って実現される」と続きます。
+      つまり包含関係は次のとおりです。</p>
+
+      <svg viewBox="0 0 520 220" role="img" aria-label="Grounding が目的、RAG はその手法の一つであることを示す包含図" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff">
+        <rect x="20" y="20" width="480" height="180" rx="12" fill="#eef4ff" stroke="#5b8def"/>
+        <text x="40" y="48" font-size="17" font-weight="bold" fill="#274b8c">Grounding(目的 / 概念)</text>
+        <text x="40" y="70" font-size="12" fill="#3a5a8c">出力を検証可能な事実に結びつける</text>
+        <rect x="48" y="92" width="150" height="64" rx="8" fill="#fff" stroke="#5b8def"/>
+        <text x="123" y="120" font-size="14" font-weight="bold" fill="#274b8c" text-anchor="middle">RAG</text>
+        <text x="123" y="140" font-size="10.5" fill="#3a5a8c" text-anchor="middle">検索して文脈に注入</text>
+        <rect x="212" y="92" width="120" height="64" rx="8" fill="#fff" stroke="#9aa7bd"/>
+        <text x="272" y="116" font-size="12" fill="#46506a" text-anchor="middle">引用付与 /</text>
+        <text x="272" y="134" font-size="12" fill="#46506a" text-anchor="middle">出典リンク</text>
+        <rect x="346" y="92" width="130" height="64" rx="8" fill="#fff" stroke="#9aa7bd"/>
+        <text x="411" y="116" font-size="12" fill="#46506a" text-anchor="middle">ツール / 検索</text>
+        <text x="411" y="134" font-size="12" fill="#46506a" text-anchor="middle">API 接続 など</text>
+      </svg>
+
+      <p>grounding という「目的」を達成する手段は RAG だけではなく、回答への出典リンク付与、
+      検索ツールや関数呼び出しによる外部参照、(限定的には)ドメインデータでの fine-tuning なども
+      含まれます。RAG はその中で最も汎用的で実装しやすいため、grounding の代名詞のように
+      扱われているわけです。</p>
+
+      <h2>では、なぜ「RAG=grounding」と聞こえる場面が多いのか</h2>
+      <p>呼び方が混ざる最大の要因は<strong>ベンダーの製品・機能名</strong>です。たとえば
+      Google Cloud の Vertex AI / Gemini には「Grounding」という名前の機能があり、その実体は
+      Google 検索や Vertex AI Search から関連情報を取り出して回答に与える ―
+      つまり RAG の仕組みそのものです。利用者から見ると「Grounding をオンにする = RAG が動く」
+      ように見えるため、両語が同義に感じられます。</p>
+      <p>AWS の Prescriptive Guidance なども grounding と RAG をセットで解説しており、
+      「RAG は grounding を実現する代表的アプローチ」という位置づけで一貫しています。
+      会話のなかで厳密に区別しないまま使われることも多いですが、
+      <strong>本質は「目的(grounding)」と「手段(RAG)」の関係</strong>だと押さえておけば混乱しません。</p>
+
+      <h2>用語の使い分けまとめ</h2>
+      <pre><code>Grounding(グラウンディング)= 目的 / 概念
+  └─ 出力を「検証可能な外部の事実」に接地させること
+     ・hallucination を減らす
+     ・出典(根拠)を提示できるようにする
+
+RAG(Retrieval-Augmented Generation)= 手法 / 実装
+  └─ 質問に関連する文書を検索 → プロンプトに文脈として注入 → 生成
+     ・grounding を達成する最も普及した方法
+     ・grounding の唯一の方法ではない(出典付与・ツール参照なども grounding)</code></pre>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://cloud.google.com/vertex-ai/generative-ai/docs/grounding/overview" rel="noopener">Grounding overview | Generative AI on Vertex AI(Google Cloud Documentation)</a></li>
+          <li><a href="https://cloud.google.com/blog/products/ai-machine-learning/rag-and-grounding-on-vertex-ai" rel="noopener">RAG and grounding on Vertex AI(Google Cloud Blog)</a></li>
+          <li><a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/agentic-ai-serverless/grounding-and-rag.html" rel="noopener">Grounding and Retrieval Augmented Generation(AWS Prescriptive Guidance)</a></li>
+          <li><a href="https://www.southampton.ac.uk/~harnad/Papers/Harnad/harnad90.sgproblem.html" rel="noopener">Stevan Harnad, "The Symbol Grounding Problem"(1990) ― grounding という語の源流</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

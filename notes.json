@@ -1,5 +1,13 @@
 [
   {
+    "title": "RAG をグラウンディングと呼ぶのはなぜ?",
+    "category": "misc",
+    "path": "misc/rag-and-grounding.html",
+    "date": "2026-06-19",
+    "summary": "厳密には RAG = grounding ではなく、grounding は「出力を検証可能な外部の事実に結びつける」目的、RAG はそれを実現する代表的な手法です。",
+    "tags": ["RAG", "Grounding", "生成AI", "LLM", "Hallucination", "Vertex AI"]
+  },
+  {
     "title": "AWS Agent Squad のアーキテクチャ構成とユースケース",
     "category": "aws",
     "path": "aws/aws-agent-squad-architecture.html",
