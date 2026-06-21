@@ -1,5 +1,13 @@
 [
   {
+    "title": "結果フィンガープリンティング手法とは何か",
+    "category": "misc",
+    "path": "misc/result-fingerprinting.html",
+    "date": "2026-06-21",
+    "summary": "結果フィンガープリンティングは、データセットやクエリ結果を決定的なハッシュ(指紋)に圧縮して突き合わせ、2 つの結果が同一かを高速・低コストに判定する手法です。",
+    "tags": ["フィンガープリンティング", "データ検証", "ハッシュ", "データ移行", "Merkleツリー", "AWS DMS", "Data Validation Tool"]
+  },
+  {
     "title": "K-匿名性とは — データのプライバシー保護をわかりやすく図解",
     "category": "misc",
     "path": "misc/k-anonymity-explained.html",
