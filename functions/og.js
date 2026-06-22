@@ -19382,9 +19382,12 @@ import resvgWasm from "./resvg.wasm";
 var SITE = "notes.maijun.net";
 var BRAND = "maijun \u306E\u6280\u8853\u8CEA\u554F\u30CE\u30FC\u30C8";
 var FONT_PATH = "/assets/og/noto-sans-jp-bold-subset.otf";
+var NOTES_PATH = "/notes.json";
 var TITLE_MAX = 48;
+var EXTRA_TITLES = [BRAND, "AWS \u306E\u8A18\u4E8B", "OCI \u306E\u8A18\u4E8B", "\u305D\u306E\u4ED6\u306E\u8A18\u4E8B", "\u691C\u7D22"];
 var initReady;
 var fontCache;
+var allowedTitlesCache;
 function ensureInit() {
   if (!initReady) {
     initReady = Promise.all([Wc(yogaWasm), initWasm(resvgWasm)]);
@@ -19393,11 +19396,28 @@ function ensureInit() {
 }
 async function loadFont(origin) {
   if (!fontCache) {
-    const res = await fetch(new URL(FONT_PATH, origin));
+    const res = await fetch(new URL(FONT_PATH, origin), { signal: AbortSignal.timeout(3e3) });
     if (!res.ok) throw new Error(`font fetch failed: ${res.status}`);
     fontCache = await res.arrayBuffer();
   }
   return fontCache;
+}
+function normalizeTitle(raw) {
+  return (raw || "").normalize("NFKC").replace(/\s+/g, " ").trim();
+}
+async function loadAllowedTitles(origin) {
+  if (allowedTitlesCache) return allowedTitlesCache;
+  const res = await fetch(new URL(NOTES_PATH, origin), { signal: AbortSignal.timeout(3e3) });
+  if (!res.ok) throw new Error(`notes.json fetch failed: ${res.status}`);
+  const notes = await res.json();
+  const set = new Set(EXTRA_TITLES.map(normalizeTitle));
+  if (Array.isArray(notes)) {
+    for (const n of notes) {
+      if (n && typeof n.title === "string") set.add(normalizeTitle(n.title));
+    }
+  }
+  allowedTitlesCache = set;
+  return allowedTitlesCache;
 }
 function clampTitle(raw) {
   const t = (raw || "").replace(/\s+/g, " ").trim();
@@ -19429,7 +19449,16 @@ function ogTree(title) {
 async function onRequestGet({ request }) {
   try {
     const url = new URL(request.url);
-    const title = clampTitle(url.searchParams.get("title"));
+    const requested = url.searchParams.get("title");
+    const titleParam = requested == null || requested.trim() === "" ? BRAND : requested;
+    const allowed = await loadAllowedTitles(url.origin);
+    if (!allowed.has(normalizeTitle(titleParam))) {
+      return new Response("Forbidden", {
+        status: 403,
+        headers: { "content-type": "text/plain; charset=utf-8" }
+      });
+    }
+    const title = clampTitle(titleParam);
     const [, font] = await Promise.all([ensureInit(), loadFont(url.origin)]);
     const svg = await nc(ogTree(title), {
       width: 1200,
@@ -19444,7 +19473,8 @@ async function onRequestGet({ request }) {
       }
     });
   } catch (err2) {
-    return new Response(`OG image error: ${err2 && err2.message ? err2.message : err2}`, {
+    console.error("OG image generation failed:", err2);
+    return new Response("Internal Server Error", {
       status: 500,
       headers: { "content-type": "text/plain; charset=utf-8" }
     });
