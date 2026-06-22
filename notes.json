@@ -1,5 +1,13 @@
 [
   {
+    "title": "HNSW と IVF — 近似最近傍探索アルゴリズムの特徴とユースケース",
+    "category": "misc",
+    "path": "misc/hnsw-vs-ivf-ann-algorithms.html",
+    "date": "2026-06-22",
+    "summary": "HNSW は多層グラフを辿る高速・高精度な探索、IVF は転置インデックスで候補クラスタだけを走査する省メモリな探索で、レイテンシ重視なら HNSW・巨大データや省メモリなら IVF が向きます。",
+    "tags": ["HNSW", "IVF", "ANN", "ベクトル検索", "近似最近傍探索", "FAISS", "Product Quantization", "埋め込み"]
+  },
+  {
     "title": "結果フィンガープリンティング手法とは何か",
     "category": "misc",
     "path": "misc/result-fingerprinting.html",
