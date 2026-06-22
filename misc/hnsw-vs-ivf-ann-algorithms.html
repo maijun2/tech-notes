@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HNSW と IVF — 近似最近傍探索アルゴリズムの特徴とユースケース | maijun の技術質問ノート</title>
+  <meta name="description" content="HNSW は多層グラフを辿る高速・高精度な探索、IVF は転置インデックスで候補クラスタだけを走査する省メモリな探索で、レイテンシ重視なら HNSW・巨大データや省メモリなら IVF が向きます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="HNSW と IVF — 近似最近傍探索アルゴリズムの特徴とユースケース">
+  <meta property="og:description" content="HNSW は多層グラフを辿る高速・高精度な探索、IVF は転置インデックスで候補クラスタだけを走査する省メモリな探索で、レイテンシ重視なら HNSW・巨大データや省メモリなら IVF が向きます。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/hnsw-vs-ivf-ann-algorithms">
+  <meta property="og:url" content="https://notes.maijun.net/misc/hnsw-vs-ivf-ann-algorithms">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=HNSW%20%E3%81%A8%20IVF%20%E2%80%94%20%E8%BF%91%E4%BC%BC%E6%9C%80%E8%BF%91%E5%82%8D%E6%8E%A2%E7%B4%A2%E3%82%A2%E3%83%AB%E3%82%B4%E3%83%AA%E3%82%BA%E3%83%A0%E3%81%AE%E7%89%B9%E5%BE%B4%E3%81%A8%E3%83%A6%E3%83%BC%E3%82%B9%E3%82%B1%E3%83%BC%E3%82%B9">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-06-22">2026-06-22</time>
+      </p>
+      <h1>HNSW と IVF — 近似最近傍探索アルゴリズムの特徴とユースケース</h1>
+
+      <div class="lead">
+        <p>HNSW(Hierarchical Navigable Small World)と IVF(Inverted File)は、どちらもベクトル検索の「近似最近傍探索(ANN)」を高速化するインデックス手法ですが、発想が異なります。HNSW は<strong>多層のグラフ</strong>を貪欲に辿って近い点へ手繰り寄せる手法で、低レイテンシ・高精度が強みです。IVF は事前にベクトルを<strong>クラスタ(セル)に分割した転置インデックス</strong>を作り、クエリに近い一部のクラスタだけを走査する手法で、省メモリかつ巨大データに向きます。レイテンシと精度を最優先するなら HNSW、メモリ効率や数億件規模のスケールを重視するなら(多くは量子化と組み合わせた)IVF が定番です。</p>
+      </div>
+
+      <h2>そもそも ANN(近似最近傍探索)とは</h2>
+      <p>埋め込み(embedding)ベクトル同士の距離が近いものを探すのが最近傍探索です。全ベクトルと総当たりで距離を計算する厳密探索(brute force / Flat)は正確ですが、件数 N に比例して遅くなります。そこで多少の取りこぼし(recall < 100%)を許す代わりに桁違いに速くするのが<strong>近似最近傍探索(Approximate Nearest Neighbor, ANN)</strong>です。HNSW と IVF は、この「速度と精度のトレードオフをどう設計するか」の代表的な 2 つのアプローチです。</p>
+
+      <h2>HNSW:多層グラフを辿るグラフ系の手法</h2>
+      <p>HNSW は、各ベクトルをノードとし「近いノード同士をエッジで結んだグラフ」を作り、グラフ上を貪欲に辿って近傍を探します。鍵は<strong>階層構造</strong>です。スキップリストのように、上の層ほどノードが疎(長距離リンク)、下の層ほど密(短距離リンク)になっており、上層で大まかに目的地付近までワープし、下層で細かく詰めます。</p>
+
+      <figure>
+        <svg viewBox="0 0 760 420" width="100%" height="auto" role="img" aria-label="HNSW の多層グラフ構造と探索経路の図">
+          <style>
+            .lyr-label{font:600 13px sans-serif;fill:#475569}
+            .nd{fill:#cbd5e1;stroke:#64748b;stroke-width:1.5}
+            .nd-path{fill:#2563eb;stroke:#1e3a8a;stroke-width:2}
+            .nd-q{fill:#ef4444;stroke:#991b1b;stroke-width:2}
+            .ed{stroke:#94a3b8;stroke-width:1.2}
+            .ed-path{stroke:#2563eb;stroke-width:2.4}
+            .cap{font:13px sans-serif;fill:#334155}
+            .legend{font:12px sans-serif;fill:#475569}
+          </style>
+          <!-- Layer 2 (top, sparse) -->
+          <text x="20" y="40" class="lyr-label">Layer 2(疎・長距離リンク)</text>
+          <line class="ed-path" x1="120" y1="60" x2="360" y2="70"/>
+          <circle class="nd-path" cx="120" cy="60" r="9"/>
+          <circle class="nd-path" cx="360" cy="70" r="9"/>
+          <circle class="nd" cx="600" cy="55" r="9"/>
+          <text x="92" y="48" class="cap">入口</text>
+          <!-- Layer 1 (middle) -->
+          <text x="20" y="170" class="lyr-label">Layer 1</text>
+          <line class="ed" x1="150" y1="200" x2="300" y2="190"/>
+          <line class="ed-path" x1="360" y1="195" x2="300" y2="190"/>
+          <line class="ed-path" x1="360" y1="195" x2="470" y2="210"/>
+          <line class="ed" x1="470" y1="210" x2="600" y2="195"/>
+          <circle class="nd" cx="150" cy="200" r="8"/>
+          <circle class="nd-path" cx="300" cy="190" r="8"/>
+          <circle class="nd-path" cx="360" cy="195" r="8"/>
+          <circle class="nd-path" cx="470" cy="210" r="8"/>
+          <circle class="nd" cx="600" cy="195" r="8"/>
+          <!-- Layer 0 (bottom, dense, all nodes) -->
+          <text x="20" y="310" class="lyr-label">Layer 0(密・全ノード)</text>
+          <line class="ed" x1="120" y1="340" x2="220" y2="350"/>
+          <line class="ed" x1="220" y1="350" x2="320" y2="335"/>
+          <line class="ed-path" x1="470" y1="345" x2="540" y2="360"/>
+          <line class="ed-path" x1="540" y1="360" x2="560" y2="320"/>
+          <line class="ed" x1="320" y1="335" x2="420" y2="360"/>
+          <line class="ed-path" x1="420" y1="360" x2="470" y2="345"/>
+          <circle class="nd" cx="120" cy="340" r="7"/>
+          <circle class="nd" cx="220" cy="350" r="7"/>
+          <circle class="nd" cx="320" cy="335" r="7"/>
+          <circle class="nd" cx="420" cy="360" r="7"/>
+          <circle class="nd-path" cx="470" cy="345" r="7"/>
+          <circle class="nd-path" cx="540" cy="360" r="7"/>
+          <circle class="nd-q" cx="560" cy="320" r="8"/>
+          <text x="572" y="318" class="cap">クエリ最近傍</text>
+          <!-- inter-layer drop arrows -->
+          <line class="ed-path" x1="360" y1="79" x2="360" y2="183" stroke-dasharray="4 3"/>
+          <line class="ed-path" x1="470" y1="219" x2="470" y2="337" stroke-dasharray="4 3"/>
+          <!-- legend -->
+          <circle class="nd-path" cx="135" cy="400" r="6"/><text x="148" y="404" class="legend">探索経路上のノード</text>
+          <circle class="nd-q" cx="330" cy="400" r="6"/><text x="343" y="404" class="legend">見つかった最近傍</text>
+          <line class="ed-path" x1="500" y1="400" x2="528" y2="400" stroke-dasharray="4 3"/><text x="536" y="404" class="legend">下の層へ降りる</text>
+        </svg>
+        <figcaption class="cap">図1:HNSW は上層でクエリ付近まで大きく移動し、層を降りながら貪欲探索で最近傍へ収束する。</figcaption>
+      </figure>
+
+      <h3>探索の流れ</h3>
+      <ol>
+        <li>最上層の固定された<strong>入口点(entry point)</strong>から開始する。</li>
+        <li>現在地の隣接ノードのうち、クエリに最も近いものへ移動する(貪欲探索)。これ以上近づけなくなったら 1 つ下の層へ降りる。</li>
+        <li>最下層(Layer 0)では幅優先的に候補を広げ(<code>ef</code> パラメータで探索幅を制御)、上位 k 件を返す。</li>
+      </ol>
+      <p>構築時は新規ノードを各層に挿入し、近い既存ノードと双方向にエッジを張ります(1 ノードあたりの接続数の上限が <code>M</code>)。検索の計算量は対数的(おおよそ O(log N))で、N が増えてもレイテンシが伸びにくいのが大きな利点です。</p>
+
+      <h3>主なパラメータ</h3>
+      <ul>
+        <li><code>M</code>:1 ノードが持つエッジ数の上限。大きいほど精度↑・メモリ↑・構築時間↑。</li>
+        <li><code>efConstruction</code>:構築時の探索幅。大きいほどグラフ品質↑・構築時間↑。</li>
+        <li><code>ef</code>(efSearch):検索時の探索幅。大きいほど recall↑・レイテンシ↑。</li>
+      </ul>
+
+      <h2>IVF:転置インデックスで候補を絞り込むクラスタ系の手法</h2>
+      <p>IVF は、事前に全ベクトルを <code>nlist</code> 個のクラスタへ分け(k-means による粗量子化=coarse quantizer)、各クラスタの重心(centroid)に紐づく<strong>転置リスト(inverted list)</strong>へ所属ベクトルを格納します。空間は重心ごとの Voronoi セルに分割されるイメージです。検索時はクエリに近い <code>nprobe</code> 個のセルだけを開いて、その中のベクトルとだけ距離を計算します。</p>
+
+      <figure>
+        <svg viewBox="0 0 760 380" width="100%" height="auto" role="img" aria-label="IVF の Voronoi セル分割と nprobe による絞り込みの図">
+          <style>
+            .cell{stroke:#94a3b8;stroke-width:1.2;fill:none}
+            .cell-on{fill:#dbeafe;stroke:#2563eb;stroke-width:2}
+            .cent{fill:#1e293b}
+            .pt{fill:#cbd5e1}
+            .pt-on{fill:#2563eb}
+            .qp{fill:#ef4444;stroke:#991b1b;stroke-width:2}
+            .t{font:12px sans-serif;fill:#334155}
+            .t2{font:600 13px sans-serif;fill:#1e3a8a}
+            .lg{font:12px sans-serif;fill:#475569}
+          </style>
+          <!-- selected cells (nprobe = 2) -->
+          <polygon class="cell-on" points="300,40 470,60 450,200 290,190"/>
+          <polygon class="cell-on" points="290,190 450,200 430,330 280,330"/>
+          <!-- other cells -->
+          <polygon class="cell" points="60,40 300,40 290,190 70,200"/>
+          <polygon class="cell" points="70,200 290,190 280,330 80,330"/>
+          <polygon class="cell" points="470,60 700,50 690,200 450,200"/>
+          <polygon class="cell" points="450,200 690,200 700,330 430,330"/>
+          <!-- centroids -->
+          <circle class="cent" cx="180" cy="120" r="5"/>
+          <circle class="cent" cx="175" cy="265" r="5"/>
+          <circle class="cent" cx="380" cy="120" r="5"/>
+          <circle class="cent" cx="360" cy="265" r="5"/>
+          <circle class="cent" cx="575" cy="120" r="5"/>
+          <circle class="cent" cx="565" cy="265" r="5"/>
+          <text x="300" y="30" class="t2">選ばれた nprobe 個のセルだけ走査</text>
+          <!-- points in selected cells -->
+          <circle class="pt-on" cx="350" cy="90" r="4"/><circle class="pt-on" cx="410" cy="140" r="4"/>
+          <circle class="pt-on" cx="330" cy="160" r="4"/><circle class="pt-on" cx="395" cy="100" r="4"/>
+          <circle class="pt-on" cx="330" cy="230" r="4"/><circle class="pt-on" cx="390" cy="300" r="4"/>
+          <circle class="pt-on" cx="360" cy="250" r="4"/>
+          <!-- points in skipped cells -->
+          <circle class="pt" cx="150" cy="90" r="4"/><circle class="pt" cx="220" cy="150" r="4"/>
+          <circle class="pt" cx="120" cy="250" r="4"/><circle class="pt" cx="200" cy="290" r="4"/>
+          <circle class="pt" cx="560" cy="90" r="4"/><circle class="pt" cx="620" cy="150" r="4"/>
+          <circle class="pt" cx="540" cy="250" r="4"/><circle class="pt" cx="630" cy="290" r="4"/>
+          <!-- query -->
+          <circle class="qp" cx="375" cy="185" r="7"/>
+          <text x="388" y="183" class="t">クエリ</text>
+          <!-- legend -->
+          <circle class="cent" cx="70" cy="362" r="5"/><text x="82" y="366" class="lg">重心(centroid)</text>
+          <circle class="pt-on" cx="240" cy="362" r="4"/><text x="252" y="366" class="lg">距離計算するベクトル</text>
+          <circle class="pt" cx="450" cy="362" r="4"/><text x="462" y="366" class="lg">スキップ(計算しない)</text>
+        </svg>
+        <figcaption class="cap">図2:IVF はクエリに近い nprobe 個のセルだけを開き、その中のベクトルとだけ距離を計算する(他セルは丸ごとスキップ)。</figcaption>
+      </figure>
+
+      <h3>探索の流れ</h3>
+      <ol>
+        <li>クエリと全 <code>nlist</code> 個の重心の距離を計算し、近い順に <code>nprobe</code> 個のセルを選ぶ。</li>
+        <li>選んだセルの転置リストに入っているベクトルとだけ距離を計算し、上位 k 件を返す。</li>
+      </ol>
+      <p>走査するのはおおむね <code>nprobe / nlist</code> の割合のベクトルだけなので、データの大部分をスキップできます。<code>nprobe</code> を上げれば recall は上がりますがレイテンシも増える、という調整しやすいトレードオフが特徴です。なお最近傍がセル境界をまたいだ隣のセルにあると取りこぼす(エッジ問題)ため、recall を確保するには <code>nprobe</code> を適切に設定します。</p>
+
+      <h3>多くは量子化と組み合わせる(IVFPQ など)</h3>
+      <p>IVF 単体(<code>IVFFlat</code>)はベクトルを生のまま保持しますが、巨大データではメモリが課題になります。そこで <strong>Product Quantization(PQ)</strong> でベクトルを圧縮した <code>IVFPQ</code> がよく使われ、数億〜十億規模を現実的なメモリに収められます(その分、量子化による精度低下はあります)。FAISS では <code>IVF4096,PQ32</code> のような文字列でインデックスを表現します。</p>
+
+      <pre><code># FAISS での IVFFlat の例(概念コード)
+import faiss
+d = 768                       # 次元数
+nlist = 4096                  # クラスタ数
+quantizer = faiss.IndexFlatL2(d)
+index = faiss.IndexIVFFlat(quantizer, d, nlist)
+index.train(xb)               # k-means で重心を学習(IVF は train が必須)
+index.add(xb)                 # ベクトルを転置リストへ登録
+index.nprobe = 16             # 検索時に開くセル数(recall と速度の調整つまみ)
+D, I = index.search(xq, k=10)</code></pre>
+      <p>HNSW と IVF は排他ではなく、IVF の粗量子化器に HNSW を使う <code>IVFHNSW</code> のような組み合わせもあります。</p>
+
+      <h2>比較表</h2>
+      <table>
+        <thead>
+          <tr><th>観点</th><th>HNSW</th><th>IVF(IVFFlat / IVFPQ)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>方式</td><td>多層グラフ + 貪欲探索</td><td>クラスタ分割 + 転置インデックス</td></tr>
+          <tr><td>事前学習(train)</td><td>不要(逐次挿入で構築)</td><td>必要(k-means で重心を学習)</td></tr>
+          <tr><td>検索速度・レイテンシ</td><td>非常に速い・低レイテンシ</td><td>速い(nprobe 次第)</td></tr>
+          <tr><td>精度(recall)</td><td>高い、安定して出しやすい</td><td>nprobe で調整、境界の取りこぼしあり</td></tr>
+          <tr><td>メモリ使用量</td><td>多い(グラフのエッジを保持)</td><td>少ない(特に PQ 併用時)</td></tr>
+          <tr><td>構築コスト</td><td>高め(グラフ構築)</td><td>train + add で比較的軽い</td></tr>
+          <tr><td>更新(追加・削除)</td><td>追加は得意、削除は不得意</td><td>追加は容易、再学習で重心が陳腐化しうる</td></tr>
+          <tr><td>主なつまみ</td><td>M / efConstruction / ef</td><td>nlist / nprobe(+ PQ の m)</td></tr>
+          <tr><td>スケール感</td><td>〜数千万件で主役</td><td>数億〜十億件でも現実的(PQ 併用)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>ユースケースの目安</h2>
+      <h3>HNSW が向くケース</h3>
+      <ul>
+        <li>RAG やセマンティック検索など、<strong>低レイテンシ・高 recall</strong> をオンラインで求める用途。</li>
+        <li>データ件数が数百万〜数千万程度で、メモリに乗せられる規模。</li>
+        <li>頻繁にベクトルを追加するが、全削除・全更新は少ないワークロード。</li>
+        <li>pgvector / Qdrant / Weaviate / Elasticsearch・OpenSearch など多くのベクトル DB の既定インデックス。</li>
+      </ul>
+      <h3>IVF(特に IVFPQ)が向くケース</h3>
+      <ul>
+        <li>数億〜十億件規模で、<strong>メモリ予算が厳しい</strong>大規模インデックス。</li>
+        <li>バッチ的な大量検索や、GPU(FAISS)での高スループット処理。</li>
+        <li>多少の精度低下を許容してでも、コストとスケールを優先したい場合。</li>
+        <li>速度と精度を <code>nprobe</code> 一つで運用中に動的調整したい場合。</li>
+      </ul>
+
+      <h2>まとめ</h2>
+      <p>「グラフを辿って近づく HNSW」か「クラスタで候補を絞る IVF」か、という発想の違いがすべての特徴に効いてきます。まずは<strong>レイテンシ・精度重視なら HNSW、巨大データ・省メモリ重視なら IVF(+PQ)</strong>を起点に、recall とレイテンシ、メモリ予算の実測でつまみ(<code>ef</code> / <code>nprobe</code>)を調整するのが実務的です。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://arxiv.org/abs/1603.09320" rel="noopener">Malkov &amp; Yashunin, "Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs" (arXiv:1603.09320)</a></li>
+          <li><a href="https://github.com/facebookresearch/faiss/wiki/Faiss-indexes" rel="noopener">Faiss Wiki — Faiss indexes(IVF / IVFPQ などの一覧)</a></li>
+          <li><a href="https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index" rel="noopener">Faiss Wiki — Guidelines to choose an index</a></li>
+          <li><a href="https://arxiv.org/abs/2401.08281" rel="noopener">Douze et al., "The Faiss library" (arXiv:2401.08281)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
