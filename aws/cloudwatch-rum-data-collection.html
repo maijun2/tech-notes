@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudWatch RUM はどうやってブラウザのデータを CloudWatch へ集めるのか | maijun の技術質問ノート</title>
+  <meta name="description" content="RUM はページに埋め込む JavaScript Web クライアントがブラウザ API でテレメトリを集め、Cognito 由来の一時認証情報で署名した PutRumEvents をリージョンの dataplane エンドポイントへ送るため、CloudWatch にデータが集まります。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="CloudWatch RUM はどうやってブラウザのデータを CloudWatch へ集めるのか">
+  <meta property="og:description" content="RUM はページに埋め込む JavaScript Web クライアントがブラウザ API でテレメトリを集め、Cognito 由来の一時認証情報で署名した PutRumEvents をリージョンの dataplane エンドポイントへ送るため、CloudWatch にデータが集まります。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/cloudwatch-rum-data-collection">
+  <meta property="og:url" content="https://notes.maijun.net/aws/cloudwatch-rum-data-collection">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=CloudWatch%20RUM%20%E3%81%AF%E3%81%A9%E3%81%86%E3%82%84%E3%81%A3%E3%81%A6%E3%83%96%E3%83%A9%E3%82%A6%E3%82%B6%E3%81%AE%E3%83%87%E3%83%BC%E3%82%BF%E3%82%92%20CloudWatch%20%E3%81%B8%E9%9B%86%E3%82%81%E3%82%8B%E3%81%AE%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-06-22">2026-06-22</time>
+      </p>
+      <h1>CloudWatch RUM はどうやってブラウザのデータを CloudWatch へ集めるのか</h1>
+
+      <div class="lead">
+        <p>CloudWatch RUM(Real User Monitoring)は、監視したいページに埋め込む小さな
+        <strong>JavaScript Web クライアント</strong>が主役です。クライアントはブラウザの
+        標準 API(<code>PerformanceObserver</code> / エラーハンドラ / <code>fetch</code>・XHR のラップなど)で
+        実ユーザーのテレメトリを集め、それを <code>PutRumEvents</code> という API リクエストとして
+        リージョンの <strong>RUM データプレーンエンドポイント</strong>
+        <code>https://dataplane.rum.&lt;region&gt;.amazonaws.com</code> へ送ります。</p>
+        <p>送信時の認証は、未認証(ゲスト)の <strong>Amazon Cognito ID プール</strong>から取得した
+        一時的な AWS 認証情報で <strong>SigV4 署名</strong>する仕組みです。つまり「ブラウザ上の JS が直接
+        AWS の API を叩ける」ことが、CloudWatch 側にデータが集まる理由です。</p>
+      </div>
+
+      <h2>なぜ CloudWatch にデータが集められるのか</h2>
+      <p>RUM の本体は、AppMonitor を作成すると払い出される
+      <strong>コードスニペット(Web クライアントのローダ)</strong>です。これを HTML に貼り付けると、
+      ブラウザがページを開いたときにクライアント JS が読み込まれ、ユーザーのセッション内で動作します。
+      従来のサーバサイド監視と違い、計測コードが<strong>実際の利用者のブラウザの中で動く</strong>ため、
+      表示速度・JavaScript エラー・通信失敗といった「現場のユーザー体験」を直接取得できます。</p>
+      <p>集めたデータをクラウドへ届けられるのは、Web クライアントが
+      <strong>CloudWatch RUM の API(<code>rum:PutRumEvents</code>)を直接呼び出せる</strong>からです。
+      ブラウザ上の JS が AWS API を安全に呼べるよう、未認証 Cognito ID プールから一時認証情報を借りて
+      リクエストに署名する、という橋渡しが用意されています。この一連の仕組みが
+      「ブラウザ → CloudWatch」のデータ収集を成立させています。</p>
+
+      <svg viewBox="0 0 720 250" role="img" aria-label="ブラウザの RUM Web クライアントが Cognito から一時認証情報を取得し、dataplane エンドポイントへ PutRumEvents を送る流れの図" style="max-width:100%;height:auto;background:#fff;border:1px solid #e2e2e2;border-radius:8px">
+        <style>
+          .box{fill:#fff;stroke:#888;stroke-width:1.5;rx:8}
+          .lbl{font:13px sans-serif;fill:#222}
+          .sub{font:11px sans-serif;fill:#666}
+          .arr{stroke:#444;stroke-width:1.5;fill:none;marker-end:url(#ah)}
+          .albl{font:11px sans-serif;fill:#1769aa}
+        </style>
+        <defs>
+          <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#444"/>
+          </marker>
+        </defs>
+        <!-- Browser -->
+        <rect class="box" x="20" y="40" width="180" height="160" rx="8"/>
+        <text class="lbl" x="110" y="64" text-anchor="middle">ブラウザ</text>
+        <rect class="box" x="40" y="80" width="140" height="100" rx="6" fill="#f4f8ff"/>
+        <text class="lbl" x="110" y="108" text-anchor="middle">RUM Web クライアント</text>
+        <text class="sub" x="110" y="128" text-anchor="middle">PerformanceObserver</text>
+        <text class="sub" x="110" y="144" text-anchor="middle">error / http 計測</text>
+        <text class="sub" x="110" y="160" text-anchor="middle">SigV4 署名</text>
+        <!-- Cognito -->
+        <rect class="box" x="300" y="30" width="160" height="70" rx="8"/>
+        <text class="lbl" x="380" y="58" text-anchor="middle">Cognito ID プール</text>
+        <text class="sub" x="380" y="78" text-anchor="middle">未認証(ゲスト)</text>
+        <!-- RUM endpoint -->
+        <rect class="box" x="520" y="140" width="180" height="80" rx="8"/>
+        <text class="lbl" x="610" y="166" text-anchor="middle">CloudWatch RUM</text>
+        <text class="sub" x="610" y="184" text-anchor="middle">dataplane.rum.&lt;region&gt;</text>
+        <text class="sub" x="610" y="200" text-anchor="middle">.amazonaws.com</text>
+        <!-- arrows -->
+        <path class="arr" d="M200,100 L300,75"/>
+        <text class="albl" x="250" y="78" text-anchor="middle">①一時認証情報</text>
+        <path class="arr" d="M300,90 L205,120"/>
+        <text class="albl" x="250" y="140" text-anchor="middle">(STS 経由)</text>
+        <path class="arr" d="M200,150 L520,175"/>
+        <text class="albl" x="360" y="200" text-anchor="middle">②PutRumEvents(SigV4 署名済み)</text>
+      </svg>
+
+      <h2>ブラウザでのデータ収集方法</h2>
+      <p>Web クライアントは「テレメトリ(telemetries)」という単位で、収集対象を有効化します。
+      代表的なものは次のとおりです。いずれもブラウザの標準 API をフックして取得します。</p>
+      <ul>
+        <li><strong>performance</strong> … ページロードのタイミング、Core Web Vitals(LCP / FID / CLS)、
+        リソース取得時間。<code>PerformanceObserver</code> / Navigation Timing から取得</li>
+        <li><strong>errors</strong> … 補足されなかった JavaScript エラー(<code>window.onerror</code> 等)</li>
+        <li><strong>http</strong> … 失敗/成功した HTTP リクエスト。<code>fetch</code> と <code>XMLHttpRequest</code> を
+        ラップして計測</li>
+        <li><strong>interaction</strong> … クリックなどの DOM イベント</li>
+        <li><strong>replay</strong> … rrweb によるセッションリプレイ(任意)</li>
+      </ul>
+      <p>収集したイベントはすぐには送らず、いったんクライアント内のキャッシュにためてから
+      <strong>バッチ送信</strong>します。既定の挙動は次のとおりです。</p>
+      <ul>
+        <li>既定で <strong>5000 ミリ秒(<code>dispatchInterval</code>)ごと</strong>に 1 バッチを送信</li>
+        <li>1 バッチあたり最大 <strong>100 イベント(<code>batchLimit</code>)</strong>。先に達した方の条件で送信</li>
+        <li>ページを離れる(<code>visibilitychange</code> / <code>pagehide</code>)際は、アンロードへの影響を
+        最小化するため <code>navigator.sendBeacon</code> を優先し、使えない場合は <code>fetch</code> に
+        フォールバック(<code>useBeacon</code> 既定 true)</li>
+      </ul>
+      <p>サンプリング率を設定すれば、全ユーザーセッションのうち一定割合だけを収集する、といった制御も可能です。</p>
+
+      <h2>エンドポイントへの接続詳細</h2>
+      <p>送信先(データ収集エンドポイント)の既定値は、AppMonitor を作成したリージョンの
+      <strong>RUM データプレーン</strong>です。</p>
+      <pre><code>https://dataplane.rum.&lt;region&gt;.amazonaws.com</code></pre>
+      <p>プロキシ(例: API Gateway)を挟む場合は、次のように任意のエンドポイント+パスプレフィックスも指定できます。</p>
+      <pre><code>https://&lt;restapi_id&gt;.execute-api.&lt;region&gt;.amazonaws.com/&lt;stage_name&gt;/</code></pre>
+      <p>このエンドポイントに対して、Web クライアントは <code>PutRumEvents</code> アクションを呼び出します。
+      <strong>送信先リージョンは AppMonitor のリージョンと一致している必要があります</strong>。例えば
+      <code>us-east-1</code> で作成した AppMonitor に対して <code>us-west-2</code> の dataplane へ送ると、
+      認証(署名検証)に失敗します。</p>
+
+      <h3>認証(なぜブラウザの JS が AWS API を叩けるのか)</h3>
+      <p>ブラウザに長期の AWS アクセスキーを置くわけにはいきません。そこで既定では、
+      <strong>未認証 Amazon Cognito ID プール</strong>を使って一時的な認証情報を借りる仕組みになっています。
+      流れは次のとおりです。</p>
+      <ol>
+        <li>Web クライアントが Cognito ID プールに対して ID を要求し、一時的な AWS 認証情報を取得する
+        (内部的に STS の一時認証情報が払い出される)</li>
+        <li>その認証情報を localStorage にキャッシュし、<code>PutRumEvents</code> リクエストを
+        <strong>SigV4 で署名</strong>して dataplane エンドポイントへ送る</li>
+      </ol>
+      <p>この ID プールに紐づく IAM ロールには、対象 AppMonitor に対する
+      <code>rum:PutRumEvents</code> の許可が必要です。最小限のポリシーは次のような形です。</p>
+      <pre><code>{
+  "Effect": "Allow",
+  "Action": "rum:PutRumEvents",
+  "Resource": "arn:aws:rum:&lt;region&gt;:&lt;account-id&gt;:appmonitor/&lt;app-monitor-name&gt;"
+}</code></pre>
+      <p>認証情報の取得経路には 2 通りの Cognito 認証フローがあります。</p>
+      <ul>
+        <li><strong>Enhanced(簡易)authflow</strong> … <code>identityPoolId</code> のみを指定した場合に使われる
+        推奨フロー。<code>GetId</code> で identity ID を得て、<code>GetCredentialsForIdentity</code> で
+        直接認証情報を受け取る</li>
+        <li><strong>Basic(クラシック)authflow</strong> … <code>identityPoolId</code> と
+        <code>guestRoleArn</code> の両方を指定した場合に使われる。Cognito が発行したトークンを
+        STS で認証情報に交換し、指定ロールを assume する</li>
+      </ul>
+      <p>このほか、アプリ側で <code>setAwsCredentials</code> により独自に認証情報を渡す方法や、
+      プロキシ構成で SigV4 署名を無効化(<code>signing: false</code>)してバックエンドで署名する方法もあります。</p>
+
+      <h3>送信が失敗するときの主な原因</h3>
+      <ul>
+        <li>広告ブロッカー/トラッキング防止により <code>dataplane.rum.*</code> へのビーコンが遮断される</li>
+        <li>IAM ロールに <code>rum:PutRumEvents</code> 許可がない、または Resource が AppMonitor と一致しない</li>
+        <li>エンドポイントのリージョンが AppMonitor のリージョンと不一致</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-RUM.html" rel="noopener">CloudWatch RUM - Amazon CloudWatch ユーザーガイド</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-RUM-get-started-authorization.html" rel="noopener">Authorize your web application to send data to AWS - Amazon CloudWatch</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-RUM-datacollected.html" rel="noopener">Information collected by the CloudWatch RUM web client - Amazon CloudWatch</a></li>
+          <li><a href="https://github.com/aws-observability/aws-rum-web/blob/main/docs/configuration.md" rel="noopener">aws-rum-web — configuration.md(endpoint / dispatchInterval / batchLimit / identityPoolId / guestRoleArn)</a></li>
+          <li><a href="https://docs.aws.amazon.com/cognito/latest/developerguide/authentication-flow.html" rel="noopener">Identity pools authentication flow - Amazon Cognito</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

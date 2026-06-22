@@ -1,5 +1,13 @@
 [
   {
+    "title": "CloudWatch RUM はどうやってブラウザのデータを CloudWatch へ集めるのか",
+    "category": "aws",
+    "path": "aws/cloudwatch-rum-data-collection.html",
+    "date": "2026-06-22",
+    "summary": "RUM はページに埋め込む JavaScript Web クライアントがブラウザ API でテレメトリを集め、Cognito 由来の一時認証情報で署名した PutRumEvents をリージョンの dataplane エンドポイントへ送るため、CloudWatch にデータが集まります。",
+    "tags": ["CloudWatch RUM", "Real User Monitoring", "PutRumEvents", "Cognito", "SigV4", "dataplane", "フロントエンド監視"]
+  },
+  {
     "title": "HNSW と IVF — 近似最近傍探索アルゴリズムの特徴とユースケース",
     "category": "misc",
     "path": "misc/hnsw-vs-ivf-ann-algorithms.html",
