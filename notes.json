@@ -1,5 +1,13 @@
 [
   {
+    "title": "台風同士が近づくと起きる「藤原の効果」とは何か",
+    "category": "misc",
+    "path": "misc/fujiwhara-effect.html",
+    "date": "2026-06-24",
+    "summary": "藤原の効果とは、2 つ以上の台風が接近したとき、互いの渦が干渉して中間点のまわりを反時計回りに回り込み、進路が複雑になる現象です。",
+    "tags": ["藤原の効果", "台風", "気象", "気象庁", "藤原咲平", "Fujiwhara effect"]
+  },
+  {
     "title": "CloudWatch RUM はどうやってブラウザのデータを CloudWatch へ集めるのか",
     "category": "aws",
     "path": "aws/cloudwatch-rum-data-collection.html",

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台風同士が近づくと起きる「藤原の効果」とは何か | maijun の技術質問ノート</title>
+  <meta name="description" content="藤原の効果とは、2 つ以上の台風が接近したとき、互いの渦が干渉して中間点のまわりを反時計回りに回り込み、進路が複雑になる現象です。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="台風同士が近づくと起きる「藤原の効果」とは何か">
+  <meta property="og:description" content="藤原の効果とは、2 つ以上の台風が接近したとき、互いの渦が干渉して中間点のまわりを反時計回りに回り込み、進路が複雑になる現象です。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/fujiwhara-effect">
+  <meta property="og:url" content="https://notes.maijun.net/misc/fujiwhara-effect">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=%E5%8F%B0%E9%A2%A8%E5%90%8C%E5%A3%AB%E3%81%8C%E8%BF%91%E3%81%A5%E3%81%8F%E3%81%A8%E8%B5%B7%E3%81%8D%E3%82%8B%E3%80%8C%E8%97%A4%E5%8E%9F%E3%81%AE%E5%8A%B9%E6%9E%9C%E3%80%8D%E3%81%A8%E3%81%AF%E4%BD%95%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">その他</span>
+        <time data-pagefind-meta="date" datetime="2026-06-24">2026-06-24</time>
+      </p>
+      <h1>台風同士が近づくと起きる「藤原の効果」とは何か</h1>
+
+      <div class="lead">
+        <p>藤原の効果とは、2 つ以上の台風(熱帯低気圧)が接近したとき、互いの渦が干渉して
+        両者の中間にあるある点のまわりを相対的に反時計回り(低気圧性)に回り込み、
+        それぞれの進路が普段とは違う複雑な動きになる現象です。</p>
+        <p>気象庁の予報用語で、戦前に中央気象台長を務めた藤原咲平の研究にちなんで名付けられました。
+        おおむね 2 つの渦が 1,000 km 以内に近づくと現れやすく、衰弱・追従・離反など複数のパターンに分かれます。</p>
+      </div>
+
+      <h2>気象庁による定義</h2>
+      <p>気象庁は「藤原の効果」を、<strong>2 つ以上の台風が接近して存在する場合に、
+      台風がそれらの中間のある点のまわりで相対的に低気圧性(北半球では反時計回り)の回転運動をすること</strong>
+      と定義しています。天気予報そのものでは使わないものの、報道発表資料などで使ってよい用語として
+      位置づけられており、「台風が、藤原の効果により相互に作用して複雑な動きをする」が用例として挙げられています。</p>
+
+      <p>名前の由来は、1921 年ごろにこの相互作用を論じた藤原咲平(ふじわら さくへい、のちの中央気象台長)です。
+      英語では <em>Fujiwhara effect</em> と表記されます。</p>
+
+      <h2>なぜ起きるのか — 2 つの渦の相互作用</h2>
+      <p>台風は反時計回りに回転する大きな空気の渦です。渦は周囲の空気を回す流れ(循環)を持つため、
+      2 つの渦が近づくと、互いに相手がつくった流れに乗って動くことになります。
+      その結果、2 つの渦は両者の質量の中心(おおよそ中間点)を軸にして、互いの周りを反時計回りに
+      回り込むように動きます。これが進路を「複雑にする」直接の原因です。</p>
+
+      <svg viewBox="0 0 480 220" role="img" aria-label="2 つの台風が中間点のまわりを反時計回りに回り込む様子の図" style="max-width:100%;height:auto;display:block;margin:1rem auto;">
+        <rect x="0" y="0" width="480" height="220" fill="#f5f7fa"/>
+        <!-- 中間点 -->
+        <circle cx="240" cy="110" r="3" fill="#888"/>
+        <text x="240" y="130" font-size="12" fill="#666" text-anchor="middle">中間点</text>
+        <!-- 回り込みを示す大きな反時計回り矢印 -->
+        <path d="M 150 60 A 110 70 0 1 0 330 60" fill="none" stroke="#bbb" stroke-width="2" stroke-dasharray="5 5"/>
+        <polygon points="150,60 160,52 162,66" fill="#bbb"/>
+        <!-- 台風A -->
+        <circle cx="130" cy="110" r="34" fill="none" stroke="#2a7" stroke-width="2"/>
+        <path d="M 130 86 A 24 24 0 0 1 154 110" fill="none" stroke="#2a7" stroke-width="3"/>
+        <path d="M 130 134 A 24 24 0 0 1 106 110" fill="none" stroke="#2a7" stroke-width="3"/>
+        <polygon points="154,110 148,103 161,103" fill="#2a7"/>
+        <text x="130" y="170" font-size="13" fill="#2a7" text-anchor="middle">台風 A</text>
+        <!-- 台風B -->
+        <circle cx="350" cy="110" r="34" fill="none" stroke="#36c" stroke-width="2"/>
+        <path d="M 350 86 A 24 24 0 0 1 374 110" fill="none" stroke="#36c" stroke-width="3"/>
+        <path d="M 350 134 A 24 24 0 0 1 326 110" fill="none" stroke="#36c" stroke-width="3"/>
+        <polygon points="374,110 368,103 381,103" fill="#36c"/>
+        <text x="350" y="170" font-size="13" fill="#36c" text-anchor="middle">台風 B</text>
+      </svg>
+
+      <p>力学的には、2 つ(以上)の渦の間に働く相互作用がこの動きを生むと考えられています。
+      ただし実際の大気では、台風は周囲の高気圧や偏西風など大規模な流れにも流されるため、
+      藤原の効果だけで進路が決まるわけではありません。両者が重なって、予測が難しい迷走的な動きになることがあります。</p>
+
+      <h2>現れやすい距離の目安</h2>
+      <p>相互作用が顕著になるのは、2 つの台風が<strong>おおむね 1,000 km 以内</strong>に接近したときが目安とされます。
+      近いほど干渉は強くなり、勢力差が大きいと弱い側がより強く影響を受けます。</p>
+
+      <h2>分類されるパターン</h2>
+      <p>藤原咲平の研究をもとに、相互作用は主に次のようなパターンに整理されています
+      (呼称は資料によって若干異なります)。</p>
+      <ul>
+        <li><strong>相寄り型</strong>: 弱い側が接近しながら急速に衰え、強い側に取り込まれる。</li>
+        <li><strong>指向型</strong>: 片方だけが干渉を受け、もう片方の周りを回るように動く。</li>
+        <li><strong>追従型</strong>: 片方が先に移動し、もう片方がその後を追いかける。</li>
+        <li><strong>時間待ち型</strong>: 東側が先に北上し、それが去った後で西側が北上を始める。</li>
+        <li><strong>同行型</strong>: 2 つが並行して移動する。</li>
+        <li><strong>離反型</strong>: 東側が加速して北東へ、西側が減速して西へ離れていく。</li>
+      </ul>
+
+      <h2>まとめ</h2>
+      <p>藤原の効果は「2 つの台風が中間点のまわりを反時計回りに回り込み、進路が複雑になる」現象です。
+      複数の台風が 1,000 km 程度まで近づいたとき、進路予測がふだんより難しくなる理由のひとつとして覚えておくとよいでしょう。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://www.jma.go.jp/jma/kishou/know/yougo_hp/haichi2.html" rel="noopener">気象庁 予報用語「気圧配置 台風に関する用語」(藤原の効果の定義)</a></li>
+          <li><a href="https://www.jma.go.jp/jma/press/0703/29b/yougo_henkou.pdf" rel="noopener">気象庁 予報用語改正案(2007 年・PDF)— 藤原の効果の用例</a></li>
+          <li><a href="https://www.jma.go.jp/jma/kishou/know/typhoon/1-1.html" rel="noopener">気象庁「台風とは」</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
