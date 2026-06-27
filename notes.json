@@ -1,5 +1,13 @@
 [
   {
+    "title": "AWS Blocks とは何か — バックエンド構築フレームワークの概要",
+    "category": "aws",
+    "path": "aws/aws-blocks-overview.html",
+    "date": "2026-06-27",
+    "summary": "AWS Blocks は 2026年6月16日にプレビュー公開されたオープンソースの TypeScript バックエンドフレームワークで、同一コードが変更なしでローカル環境と AWS 本番環境の両方で動作します。",
+    "tags": ["AWS Blocks", "バックエンド", "TypeScript", "ローカルファースト", "CDK", "フルスタック", "AI Agent", "プレビュー"]
+  },
+  {
     "title": "台風同士が近づくと起きる「藤原の効果」とは何か",
     "category": "misc",
     "path": "misc/fujiwhara-effect.html",
