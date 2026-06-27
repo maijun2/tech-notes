@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AWS Blocks とは何か — バックエンド構築フレームワークの概要 | maijun の技術質問ノート</title>
+  <meta name="description" content="AWS Blocks は 2026年6月16日にプレビュー公開されたオープンソースの TypeScript バックエンドフレームワークで、同一コードが変更なしでローカル環境と AWS 本番環境の両方で動作します。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="AWS Blocks とは何か — バックエンド構築フレームワークの概要">
+  <meta property="og:description" content="AWS Blocks は 2026年6月16日にプレビュー公開されたオープンソースの TypeScript バックエンドフレームワークで、同一コードが変更なしでローカル環境と AWS 本番環境の両方で動作します。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/aws-blocks-overview">
+  <meta property="og:url" content="https://notes.maijun.net/aws/aws-blocks-overview">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=AWS%20Blocks%20%E3%81%A8%E3%81%AF%E4%BD%95%E3%81%8B%20%E2%80%94%20%E3%83%90%E3%83%83%E3%82%AF%E3%82%A8%E3%83%B3%E3%83%89%E6%A7%8B%E7%AF%89%E3%83%95%E3%83%AC%E3%83%BC%E3%83%A0%E3%83%AF%E3%83%BC%E3%82%AF%E3%81%AE%E6%A6%82%E8%A6%81">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-06-27">2026-06-27</time>
+      </p>
+      <h1>AWS Blocks とは何か — バックエンド構築フレームワークの概要</h1>
+
+      <div class="lead">
+        <p>AWS Blocks は 2026年6月16日にパブリックプレビューとして公開されたオープンソースの TypeScript バックエンドフレームワークです。各「Block」はアプリケーションコード・ローカル開発セットアップ・インフラ定義を一体化した自己完結型のバックエンド機能単位であり、<strong>同一コードが変更なしでローカル環境と AWS 本番環境の両方で動作</strong>します。AWS アカウントなしでローカル実行でき、デプロイ時はインフラ学習なしで AWS 上のマネージドサービスへ展開できます。Blocks 自体に利用料金は発生せず、裏側で使う AWS サービスのコストのみを負担します。</p>
+      </div>
+
+      <h2>背景 — なぜ AWS Blocks が登場したのか</h2>
+      <p>従来のバックエンド開発では、AWS サービスの選定・IaC 記述・ローカル模擬環境の用意という 3 つの負担が重なっていました。Amplify はフロントエンド開発者向けにインフラを隠蔽しましたが、詳細なカスタマイズが難しいという課題がありました。AWS Blocks は<strong>「インフラをコードに表現しつつ、ローカル実行をファーストクラスにする」</strong>アプローチをとります。AI コーディングエージェントによるコード生成を前提とした設計も大きな特徴で、エージェントが一セッションでデータベース・認証・AI エージェント・ファイルアップロード・バックグラウンドジョブを組み合わせられるよう設計されています。</p>
+
+      <h2>Block の概念</h2>
+      <p>1 つの Block は以下の 3 要素をひとまとめにしたモジュールです。</p>
+      <ul>
+        <li><strong>アプリケーションコード</strong> — TypeScript で記述したビジネスロジック</li>
+        <li><strong>ローカル開発セットアップ</strong> — Docker や外部サービス不要の完全インメモリ/ファイルシステム実装</li>
+        <li><strong>インフラ定義</strong> — 本番 AWS へデプロイするための AWS CDK ベースの構成</li>
+      </ul>
+      <p>Block 同士は自由に組み合わせ可能で、組み合わせると AWS のベストプラクティスに沿ったインフラが自動構成されます。必要に応じて AWS CDK を直接記述できる「エスケープハッチ」も用意されており、フルマネージドと完全制御の間を行き来できます。</p>
+
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 230" width="100%" role="img" aria-label="ローカルモードと本番モードの対比図">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#555"/>
+          </marker>
+        </defs>
+        <!-- ローカルモード -->
+        <rect x="10" y="10" width="290" height="210" rx="8" fill="#f0f4ff" stroke="#4a6bdb" stroke-width="1.5"/>
+        <text x="155" y="32" text-anchor="middle" font-size="12" font-weight="bold" fill="#2d4ac8">ローカルモード</text>
+        <text x="155" y="48" text-anchor="middle" font-size="10" fill="#2d4ac8">AWS アカウント不要</text>
+        <rect x="68" y="58" width="174" height="28" rx="4" fill="#4a6bdb"/>
+        <text x="155" y="76" text-anchor="middle" font-size="11" fill="white">App Code + Blocks</text>
+        <line x1="155" y1="86" x2="155" y2="106" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+        <rect x="18" y="106" width="80" height="28" rx="4" fill="#c7d5ff" stroke="#4a6bdb" stroke-width="1"/>
+        <text x="58" y="124" text-anchor="middle" font-size="10" fill="#2d4ac8">PGlite</text>
+        <rect x="108" y="106" width="80" height="28" rx="4" fill="#c7d5ff" stroke="#4a6bdb" stroke-width="1"/>
+        <text x="148" y="124" text-anchor="middle" font-size="10" fill="#2d4ac8">Local Auth</text>
+        <rect x="198" y="106" width="80" height="28" rx="4" fill="#c7d5ff" stroke="#4a6bdb" stroke-width="1"/>
+        <text x="238" y="124" text-anchor="middle" font-size="10" fill="#2d4ac8">Local FS</text>
+        <text x="155" y="168" text-anchor="middle" font-size="10" fill="#555">⚡ クラウド往復なし</text>
+        <text x="155" y="185" text-anchor="middle" font-size="10" fill="#555">即時フィードバック</text>
+        <!-- deploy 矢印 -->
+        <line x1="308" y1="115" x2="348" y2="115" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+        <text x="328" y="108" text-anchor="middle" font-size="9" fill="#555">deploy</text>
+        <!-- 本番モード -->
+        <rect x="358" y="10" width="292" height="210" rx="8" fill="#f0fff4" stroke="#2e9e5e" stroke-width="1.5"/>
+        <text x="504" y="32" text-anchor="middle" font-size="12" font-weight="bold" fill="#1a7a40">本番モード（AWS）</text>
+        <text x="504" y="48" text-anchor="middle" font-size="10" fill="#1a7a40">コード変更なし</text>
+        <rect x="417" y="58" width="174" height="28" rx="4" fill="#2e9e5e"/>
+        <text x="504" y="76" text-anchor="middle" font-size="11" fill="white">App Code + Blocks</text>
+        <line x1="504" y1="86" x2="504" y2="106" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+        <rect x="365" y="106" width="82" height="28" rx="4" fill="#b7e8c7" stroke="#2e9e5e" stroke-width="1"/>
+        <text x="406" y="124" text-anchor="middle" font-size="10" fill="#1a7a40">Managed DB</text>
+        <rect x="457" y="106" width="82" height="28" rx="4" fill="#b7e8c7" stroke="#2e9e5e" stroke-width="1"/>
+        <text x="498" y="124" text-anchor="middle" font-size="10" fill="#1a7a40">Auth/Realtime</text>
+        <rect x="549" y="106" width="82" height="28" rx="4" fill="#b7e8c7" stroke="#2e9e5e" stroke-width="1"/>
+        <text x="590" y="124" text-anchor="middle" font-size="10" fill="#1a7a40">S3 / Lambda</text>
+        <text x="504" y="168" text-anchor="middle" font-size="10" fill="#555">☁ AWS ベストプラクティス自動適用</text>
+        <text x="504" y="185" text-anchor="middle" font-size="10" fill="#555">CDK エスケープハッチ対応</text>
+      </svg>
+
+      <h2>利用可能な Block 一覧（プレビュー時点）</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Block</th>
+            <th>ローカル実装</th>
+            <th>AWS 本番</th>
+            <th>主な機能</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Database</td>
+            <td>PGlite（インメモリ Postgres）</td>
+            <td>マネージド Postgres</td>
+            <td>型安全な Postgres インタフェース</td>
+          </tr>
+          <tr>
+            <td>Auth</td>
+            <td>ローカル認証サーバ</td>
+            <td>マネージド Auth</td>
+            <td>メール/パスワード・ソーシャルログイン・企業 SSO・既存 Auth プロバイダ連携</td>
+          </tr>
+          <tr>
+            <td>Realtime</td>
+            <td>ローカル pub/sub サーバ</td>
+            <td>マネージド WebSocket</td>
+            <td>リアルタイムメッセージング</td>
+          </tr>
+          <tr>
+            <td>FileBucket</td>
+            <td>ローカルファイルシステム</td>
+            <td>マネージドストレージ（S3 相当）</td>
+            <td>ファイルアップロード・ダウンロード</td>
+          </tr>
+          <tr>
+            <td>AsyncJob</td>
+            <td>ローカル実行</td>
+            <td>マネージドコンピュート</td>
+            <td>バックグラウンドジョブ</td>
+          </tr>
+          <tr>
+            <td>CronJob</td>
+            <td>ローカル実行</td>
+            <td>マネージドコンピュート</td>
+            <td>スケジュールタスク</td>
+          </tr>
+          <tr>
+            <td>Agent</td>
+            <td>ローカル実行</td>
+            <td>Bedrock 等</td>
+            <td>AI エージェント（ツール呼び出し・会話永続化・Human-in-the-loop 承認）</td>
+          </tr>
+          <tr>
+            <td>KnowledgeBase</td>
+            <td>ローカル実行</td>
+            <td>マネージドベクトル DB</td>
+            <td>RAG 向け埋め込み検索</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>対応フロントエンドフレームワーク</h2>
+      <ul>
+        <li>SPA: Vite + React</li>
+        <li>SSR: Next.js、Nuxt、Astro</li>
+      </ul>
+      <p>型安全性がエンドツーエンドで保証されており、バックエンドの型変更はフロントエンドの型に自動反映されます（コード生成ステップ不要）。また、Kotlin / Swift / Dart 向けのネイティブクライアントコード生成にも対応しています。</p>
+
+      <h2>技術者視点でのユースケース</h2>
+
+      <h3>1. SaaS アプリのラピッドプロトタイピング</h3>
+      <p>データベース・認証・ファイルアップロード・バックグラウンドジョブを一セッションで追加し、AWS アカウントなしでローカル完結テストができます。本番移行はコード変更不要で <code>deploy</code> コマンドを実行するだけです。</p>
+
+      <h3>2. AI コーディングエージェントとの組み合わせ</h3>
+      <p>AWS Blocks は AI エージェントによるコード生成を前提に設計されています。Block を組み合わせるだけでインフラが自動構成されるため、インフラ知識のない LLM でも安全なバックエンドを生成できます。</p>
+
+      <h3>3. フルスタック型 AI アプリの開発</h3>
+      <p>Agent Block と KnowledgeBase Block を組み合わせることで、ツール呼び出し・会話履歴管理・Human-in-the-loop 承認フローを備えた RAG エージェントを、インフラ設定なしで構築できます。</p>
+
+      <h3>4. AWS への段階的な習熟</h3>
+      <p>最初は Block を組み合わせるだけで済み、必要になったら CDK エスケープハッチで個別リソースを直接制御できます。Amplify のようにインフラを「隠す」のではなく「透けて見える」ため、AWS の学習素材としても活用できます。</p>
+
+      <h2>Amplify・CDK との比較</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>観点</th>
+            <th>AWS Blocks</th>
+            <th>Amplify Gen 2</th>
+            <th>AWS CDK</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>インフラの見せ方</td>
+            <td>コードに透明に表現</td>
+            <td>カテゴリ抽象で隠蔽</td>
+            <td>完全制御（低レベル）</td>
+          </tr>
+          <tr>
+            <td>ローカル実行</td>
+            <td>完全対応（クラウド往復なし）</td>
+            <td>サンドボックス（クラウドが必要）</td>
+            <td>環境依存</td>
+          </tr>
+          <tr>
+            <td>インフラ学習コスト</td>
+            <td>最小限</td>
+            <td>ほぼ不要</td>
+            <td>高い</td>
+          </tr>
+          <tr>
+            <td>CDK カスタマイズ</td>
+            <td>エスケープハッチで対応</td>
+            <td>内部で CDK を使用・一部公開</td>
+            <td>完全対応</td>
+          </tr>
+          <tr>
+            <td>AI コード生成との親和性</td>
+            <td>高（設計目標）</td>
+            <td>中</td>
+            <td>中</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>始め方</h2>
+      <pre><code># 新規プロジェクト作成（AWS アカウント不要）
+npx @aws-blocks/create-blocks-app
+
+# ローカル起動
+npm run dev
+
+# AWS へデプロイ（AWS アカウントが必要）
+npm run deploy</code></pre>
+
+      <section class="refs">
+        <h2>参照（一次情報）</h2>
+        <ul>
+          <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/06/aws-blocks-preview/" rel="noopener">AWS announces AWS Blocks — What's New (2026/06/16)</a></li>
+          <li><a href="https://docs.aws.amazon.com/blocks/latest/devguide/what-is-blocks.html" rel="noopener">What is AWS Blocks? — AWS Blocks Developer Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/blocks/latest/devguide/concepts.html" rel="noopener">AWS Blocks concepts — AWS Blocks Developer Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/blocks/latest/devguide/building-blocks-reference.html" rel="noopener">Blocks reference — AWS Blocks Developer Guide</a></li>
+          <li><a href="https://aws.amazon.com/products/developer-tools/blocks/" rel="noopener">AWS Blocks 製品ページ</a></li>
+          <li><a href="https://github.com/aws-devtools-labs/aws-blocks" rel="noopener">GitHub: aws-devtools-labs/aws-blocks</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
