@@ -182,5 +182,13 @@
     "date": "2026-06-13",
     "summary": "Progressive Disclosure で「いま必要な Skill 本文だけ」を都度読み込み、ゆらぎを許さない処理はスクリプトに任せて分離しているため、指示を忠実に守れます。",
     "tags": ["Claude", "Skills", "Progressive Disclosure"]
+  },
+  {
+    "title": "OKE のオンデマンド仮想ノード・サイクリングとは",
+    "category": "oci",
+    "path": "oci/oke-virtual-node-cycling.html",
+    "date": "2026-07-07",
+    "summary": "OKE の仮想ノード・プールでもオンデマンドのノード・サイクリングがサポートされ、UpdateVirtualNodePool で isVirtualNodeCyclingEnabled を有効にすると、既存の仮想ノードを新しい構成のノードへ自動的に順次置き換えられます。",
+    "tags": ["OKE", "Virtual Nodes", "Node Cycling", "Kubernetes"]
   }
 ]

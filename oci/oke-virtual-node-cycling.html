@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OKE のオンデマンド仮想ノード・サイクリングとは | maijun の技術質問ノート</title>
+  <meta name="description" content="OKE の仮想ノード・プールでもオンデマンドのノード・サイクリングがサポートされ、UpdateVirtualNodePool で isVirtualNodeCyclingEnabled を有効にすると、既存の仮想ノードを新しい構成のノードへ自動的に順次置き換えられます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="OKE のオンデマンド仮想ノード・サイクリングとは">
+  <meta property="og:description" content="OKE の仮想ノード・プールでもオンデマンドのノード・サイクリングがサポートされ、UpdateVirtualNodePool で isVirtualNodeCyclingEnabled を有効にすると、既存の仮想ノードを新しい構成のノードへ自動的に順次置き換えられます。">
+  <link rel="canonical" href="https://notes.maijun.net/oci/oke-virtual-node-cycling">
+  <meta property="og:url" content="https://notes.maijun.net/oci/oke-virtual-node-cycling">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=OKE%20%E3%81%AE%E3%82%AA%E3%83%B3%E3%83%87%E3%83%9E%E3%83%B3%E3%83%89%E4%BB%AE%E6%83%B3%E3%83%8E%E3%83%BC%E3%83%89%E3%83%BB%E3%82%B5%E3%82%A4%E3%82%AF%E3%83%AA%E3%83%B3%E3%82%B0%E3%81%A8%E3%81%AF">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time data-pagefind-meta="date" datetime="2026-07-07">2026-07-07</time>
+      </p>
+      <h1>OKE のオンデマンド仮想ノード・サイクリングとは</h1>
+
+      <div class="lead">
+        <p>OCI Kubernetes Engine (OKE) の仮想ノード(Virtual Nodes)でも、これまで管理対象ノード(Managed Nodes)だけが対象だった「オンデマンドのノード・サイクリング」がサポートされました。仮想ノード・プールの更新 API(UpdateVirtualNodePool)で <code>isVirtualNodeCyclingEnabled</code> を有効にして更新すると、taint やラベル、NSG、Pod 構成などの変更が、既存の仮想ノードを新しい構成のノードへ自動的に順次置き換える形で反映されます。置き換えの並行度は <code>maximumSurge</code>(既定 1)と <code>maximumUnavailable</code>(既定 0)で制御でき、アプリケーションの可用性とコストのバランスを調整できます。</p>
+      </div>
+
+      <h2>前提: 仮想ノードとノード・サイクリングのおさらい</h2>
+      <p>仮想ノードは、OKE の拡張クラスタ(Enhanced Cluster)で利用できる「サーバーレス」なワーカー・ノードです。ノードとなるインフラストラクチャの管理(パッチ適用やスケーリングなど)を Oracle 側が行うため、利用者はワーカー・ノードの OS 運用から解放されます。Kubernetes バージョンについても、コントロール・プレーンをアップグレードすると仮想ノードは自動で追従します。</p>
+      <p>一方「ノード・サイクリング」は、ノード・プールのプロパティ変更を既存ノードへ行き渡らせるために、新しい構成のノードを作成してワークロードを移し、古いノードを終了する、というインプレース更新の仕組みです。従来この機能は管理対象ノード・プール専用で、後にリブートやブート・ボリューム置換にも拡張されてきましたが、仮想ノード・プールでは使えませんでした。今回のリリースで、この「オンデマンドで任意のタイミングにサイクリングを実行できる」仕組みが仮想ノードにも広がった、というのが発表の要点です。</p>
+
+      <h2>何ができるようになったか</h2>
+      <p>仮想ノード・プールの更新時にサイクリングを有効化すると、プール内の既存の仮想ノードが新しい構成の仮想ノードへ自動的に置き換えられます。UpdateVirtualNodePool で変更できるプロパティは次のとおりで(OCI 公式 SDK / CLI の定義から確認)、これらの変更を既存ノードへ反映する手段としてサイクリングを利用できます。</p>
+      <ul>
+        <li>表示名(<code>displayName</code>)、サイズ(<code>size</code>)</li>
+        <li>初期ラベル(<code>initialVirtualNodeLabels</code>)と taint(<code>taints</code>)</li>
+        <li>配置構成(<code>placementConfigurations</code>: 可用性ドメイン/フォルト・ドメイン/サブネット)</li>
+        <li>ネットワーク・セキュリティ・グループ(<code>nsgIds</code>)</li>
+        <li>Pod 構成(<code>podConfiguration</code>: Pod 用サブネット・NSG・shape)</li>
+        <li>タグ(<code>freeformTags</code> / <code>definedTags</code> / <code>virtualNodeTags</code>)</li>
+      </ul>
+
+      <h2>サイクリングを制御する 3 つのパラメータ</h2>
+      <p>サイクリングの挙動は、仮想ノード・プールの <code>virtualNodePoolCyclingDetails</code> に指定する次の 3 つで制御します(値は OCI 公式 SDK の API 定義で確認したものです)。</p>
+      <ul>
+        <li><code>isVirtualNodeCyclingEnabled</code>: サイクリングを有効にするかどうか。有効にして更新すると、変更を反映するために既存の仮想ノードが置き換えられます</li>
+        <li><code>maximumSurge</code>: サイクリング中に一時的に追加してよい仮想ノード数(整数またはプール・サイズに対する割合。既定は 1)。大きくするほど並行して置き換えられ所要時間は短くなりますが、その分一時的なコストが増えます</li>
+        <li><code>maximumUnavailable</code>: サイクリング中に同時に停止してよい既存仮想ノード数(整数または割合。既定は 0)。大きくするほどコストをかけずに並行処理できますが、可用性への影響が大きくなります</li>
+      </ul>
+
+      <svg viewBox="0 0 720 260" role="img" aria-label="仮想ノード・サイクリングの流れ: 旧構成の仮想ノードが maximumSurge で一時追加された新構成ノードへ順次置き換えられる" style="max-width: 100%; height: auto;">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6b7a"/>
+          </marker>
+        </defs>
+        <text x="20" y="30" font-size="14" font-weight="bold" fill="#334155">仮想ノード・プール(サイクリング実行中)</text>
+        <!-- old nodes -->
+        <rect x="20" y="50" width="130" height="52" rx="8" fill="#e2e8f0" stroke="#94a3b8"/>
+        <text x="85" y="72" font-size="12" text-anchor="middle" fill="#334155">仮想ノード A</text>
+        <text x="85" y="90" font-size="11" text-anchor="middle" fill="#64748b">旧構成(drain 中)</text>
+        <rect x="20" y="115" width="130" height="52" rx="8" fill="#e2e8f0" stroke="#94a3b8"/>
+        <text x="85" y="137" font-size="12" text-anchor="middle" fill="#334155">仮想ノード B</text>
+        <text x="85" y="155" font-size="11" text-anchor="middle" fill="#64748b">旧構成(待機)</text>
+        <rect x="20" y="180" width="130" height="52" rx="8" fill="#e2e8f0" stroke="#94a3b8"/>
+        <text x="85" y="202" font-size="12" text-anchor="middle" fill="#334155">仮想ノード C</text>
+        <text x="85" y="220" font-size="11" text-anchor="middle" fill="#64748b">旧構成(待機)</text>
+        <!-- arrow: workload move -->
+        <line x1="160" y1="76" x2="270" y2="76" stroke="#5f6b7a" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="215" y="66" font-size="11" text-anchor="middle" fill="#5f6b7a">ワークロード移動</text>
+        <!-- new surge node -->
+        <rect x="280" y="50" width="150" height="52" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-dasharray="6 3"/>
+        <text x="355" y="72" font-size="12" text-anchor="middle" fill="#166534">仮想ノード A'(新構成)</text>
+        <text x="355" y="90" font-size="11" text-anchor="middle" fill="#16a34a">maximumSurge で一時追加</text>
+        <!-- explanation -->
+        <text x="280" y="140" font-size="12" fill="#334155">1. 新構成の仮想ノードを一時追加(maximumSurge)</text>
+        <text x="280" y="162" font-size="12" fill="#334155">2. 旧ノードから新ノードへワークロードを移動</text>
+        <text x="280" y="184" font-size="12" fill="#334155">3. 旧ノードを終了し、B・C も同様に順次置き換え</text>
+        <text x="280" y="206" font-size="12" fill="#334155">4. 同時停止数は maximumUnavailable で制限</text>
+      </svg>
+
+      <h2>使い方(OCI CLI の例)</h2>
+      <p>OCI CLI では <code>oci ce virtual-node-pool update</code> の <code>--virtual-node-pool-cycling-details</code> オプションに JSON で指定します。次の例は、taint の変更をサイクリングで既存ノードへ反映するイメージです(OCID はダミー値です)。</p>
+      <pre><code>oci ce virtual-node-pool update \
+  --virtual-node-pool-id ocid1.virtualnodepool.oc1..example \
+  --taints '[{"key":"app","value":"batch","effect":"NoSchedule"}]' \
+  --virtual-node-pool-cycling-details \
+    '{"isVirtualNodeCyclingEnabled": true, "maximumSurge": "1", "maximumUnavailable": "0"}'</code></pre>
+      <p>API では UpdateVirtualNodePool リクエストの <code>virtualNodePoolCyclingDetails</code> が対応します。また CreateVirtualNodePool にも同じフィールドがあるため、プール作成時にサイクリングの既定動作をあらかじめ設定しておくこともできます。</p>
+
+      <h2>管理対象ノードのサイクリングとの違い</h2>
+      <p>管理対象ノードのサイクリングでは「ノードの終了と置換」「ブート・ボリューム置換」「リブート」といった置き換え方式を選べますが、仮想ノードはインフラストラクチャが Oracle 管理のサーバーレス構成であるため、方式の選択はなく「新しい構成の仮想ノードへの置き換え」として動作します。また、管理対象ノードでは Kubernetes バージョンのアップグレード手段としてサイクリングを使いますが、仮想ノードの Kubernetes バージョンは従来どおりコントロール・プレーンのアップグレードに自動追従します。</p>
+      <p>なお、本記事の執筆時点では、リリースノート本文(リリース日を含む)と、cordon / drain の細かい挙動(PodDisruptionBudget の扱いなど)が仮想ノードでも管理対象ノードのサイクリングと完全に同一かどうかは、ネットワーク制限により一次情報で未確認です。適用前に文末のリリースノートおよび公式ドキュメントで最新の仕様を確認してください。パラメータ名・既定値・変更可能プロパティは OCI 公式 SDK / CLI(oci 2.181.1 / oci-cli)の API 定義で確認済みです。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/releasenotes/conteng/conteng-virtual-node-cycling-release-note.htm" rel="noopener">Kubernetes Engine リリースノート: 仮想ノード・サイクリングのサポート(Oracle 公式)</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/Content/ContEng/Tasks/update-virtual-node-pool.htm" rel="noopener">仮想ノード・プールの更新(Oracle 公式ドキュメント)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/api/#/en/containerengine/20180222/datatypes/VirtualNodePoolCyclingDetails" rel="noopener">Container Engine API リファレンス: VirtualNodePoolCyclingDetails</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/Content/ContEng/Tasks/contengworkingwithvirtualnodes.htm" rel="noopener">仮想ノードの操作(Oracle 公式ドキュメント)</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/Content/ContEng/Tasks/contengupgradingimageworkernode_topic-Performing_an_InPlace_Worker_Node_Update_By_Cycling_an_Existing_Node_Pool.htm" rel="noopener">ノードのサイクリングによるインプレース・ワーカー・ノード更新(Oracle 公式ドキュメント)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../oci.html">← OCI の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
