@@ -1,5 +1,13 @@
 [
   {
+    "title": "AWS Code シリーズで CodeCommit を使うメリット",
+    "category": "aws",
+    "path": "aws/codecommit-benefits.html",
+    "date": "2026-07-09",
+    "summary": "CodeCommit の最大のメリットは、Git リポジトリを IAM・KMS・CloudTrail・VPC エンドポイントといった AWS の認証・暗号化・監査の基盤にそのまま載せられることです。",
+    "tags": ["CodeCommit", "CodePipeline", "CodeBuild", "IAM", "Git", "CI/CD", "PrivateLink", "KMS"]
+  },
+  {
     "title": "AWS Blocks とは何か — バックエンド構築フレームワークの概要",
     "category": "aws",
     "path": "aws/aws-blocks-overview.html",
