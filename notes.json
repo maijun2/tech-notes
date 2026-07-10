@@ -1,5 +1,13 @@
 [
   {
+    "title": "EKS on Fargate と OKE コントロールプレーンのパッチ適用",
+    "category": "misc",
+    "path": "misc/eks-fargate-oke-control-plane-patching.html",
+    "date": "2026-07-10",
+    "summary": "EKS on Fargate の OS パッチは AWS が自動で適用し、パッチ済みの新しい Fargate ノードへ Pod を再作成(リサイクル)して置き換えます。",
+    "tags": ["EKS", "Fargate", "OKE", "Kubernetes", "パッチ適用", "コントロールプレーン", "PodDisruptionBudget", "共有責任モデル"]
+  },
+  {
     "title": "AWS Code シリーズで CodeCommit を使うメリット",
     "category": "aws",
     "path": "aws/codecommit-benefits.html",
