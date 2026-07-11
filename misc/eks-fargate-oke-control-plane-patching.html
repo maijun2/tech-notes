@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EKS on Fargate と OKE コントロールプレーンのパッチ適用 | maijun の技術質問ノート</title>
+  <meta name="description" content="EKS on Fargate は AWS が OS パッチを自動適用し Pod を再作成(リサイクル)、OKE のコントロールプレーンは Oracle が管理し重大な脆弱性を自動パッチ・マイナー版アップグレードのみ利用者が起点になります。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="EKS on Fargate と OKE コントロールプレーンのパッチ適用">
+  <meta property="og:description" content="EKS on Fargate は AWS が OS パッチを自動適用し Pod を再作成(リサイクル)、OKE のコントロールプレーンは Oracle が管理し重大な脆弱性を自動パッチ・マイナー版アップグレードのみ利用者が起点になります。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/eks-fargate-oke-control-plane-patching">
+  <meta property="og:url" content="https://notes.maijun.net/misc/eks-fargate-oke-control-plane-patching">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=EKS%20on%20Fargate%20%E3%81%A8%20OKE%20%E3%82%B3%E3%83%B3%E3%83%88%E3%83%AD%E3%83%BC%E3%83%AB%E3%83%97%E3%83%AC%E3%83%BC%E3%83%B3%E3%81%AE%E3%83%91%E3%83%83%E3%83%81%E9%81%A9%E7%94%A8">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-07-10">2026-07-10</time>
+      </p>
+      <h1>EKS on Fargate と OKE コントロールプレーンのパッチ適用</h1>
+
+      <div class="lead">
+        <p><strong>EKS on Fargate</strong> の OS パッチは AWS が自動で適用し、パッチ済みの新しい Fargate ノードへ <strong>Pod を再作成(リサイクル)</strong>して置き換えます。利用者が OS にログインして手当てすることはできず、代わりに <strong>PodDisruptionBudget(PDB)</strong> で無停止性を守るのが基本方針です。</p>
+        <p><strong>OKE のコントロールプレーン</strong>は Oracle がフルマネージドで運用します。重大な脆弱性のパッチは <strong>Oracle が自動適用</strong>し、利用者が起点になるのは <strong>Kubernetes マイナー版のアップグレード操作</strong>だけです(操作は利用者、実行は Oracle という責任分担)。</p>
+      </div>
+
+      <h2>結論(比較表)</h2>
+      <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr><th>観点</th><th>EKS on Fargate</th><th>OKE コントロールプレーン</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>パッチ対象</td><td>Fargate ノードの OS / kubelet 等(データプレーン)</td><td>Kubernetes コントロールプレーン(API server, etcd 等)</td></tr>
+          <tr><td>OS/重大脆弱性パッチ</td><td>AWS が自動適用(Pod をリサイクル)</td><td>Oracle が自動適用(利用者操作不要)</td></tr>
+          <tr><td>利用者が起点になる操作</td><td>基本なし(PDB 設定で影響を制御)</td><td>Kubernetes マイナー版のアップグレード開始</td></tr>
+          <tr><td>ダウンタイム</td><td>Pod 単位で入れ替え(AZ ごとに退避)</td><td>Oracle が管理、コントロールプレーン停止なし</td></tr>
+          <tr><td>利用者が SSH/手動パッチ</td><td>不可(ホスト非公開)</td><td>不可(Oracle 管理)</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h2>EKS on Fargate のパッチ適用</h2>
+      <p>Fargate では 1 Pod = 1 マイクロ VM(ノード)であり、利用者はノードの OS にアクセスできません。そのため Amazon EKS が定期的にノードの OS をパッチし、<strong>ノードをリサイクル(再作成)して置き換える</strong>ことで最新のセキュリティ更新を反映します。すべての Fargate Pod は、クラスタの Kubernetes バージョンに対して EKS が提供する<strong>最新のパッチバージョン</strong>で起動します。古いパッチの Pod があると、EKS が最新へ更新するためにリサイクルすることがあります。</p>
+
+      <h3>退避(eviction)の流れ</h3>
+      <ul>
+        <li>影響を最小化するため、Pod は <strong>Availability Zone(AZ)単位</strong>で退避されます。退避には Kubernetes の <strong>Eviction API</strong> が使われ、その呼び出しは EKS の監査ログに記録されます。</li>
+        <li>退避が成功すれば、新しい Pod が最新パッチで起動し、追加の対応は不要です。</li>
+        <li>退避に失敗した場合、EKS は<strong>退避に失敗した Pod の詳細を含むイベントをアカウントへ送信</strong>します。イベントにはクラスタ名・Pod・Namespace・Fargate プロファイル・<strong>予定されている終了時刻(scheduled termination time)</strong>などが含まれます。</li>
+        <li>終了予定時刻になっても退避できない場合、新しいパッチ済み Pod に置き換えるため、<strong>既存 Pod は定期的に削除</strong>されます。終了までの猶予はパッチの緊急度によって変わります。</li>
+      </ul>
+
+      <h3>影響を抑える設定 — PodDisruptionBudget</h3>
+      <p>リサイクル時に同時停止する Pod 数を抑えるには、アプリごとに <strong>PodDisruptionBudget(PDB)</strong> を設定して最小可用性を宣言します。これによりパッチ適用は進めつつ、同時ダウン数を制限できます。</p>
+      <pre><code>apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: sample-pdb
+spec:
+  minAvailable: 2        # または maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: sample</code></pre>
+      <p>注意点として、<code>minAvailable: 100%</code> のように 100% を指定すると退避できず失敗します。また 1 つの Pod に<strong>複数の PDB</strong> がマッチすると eviction subresource が非対応でエラーになります。緊急パッチのイベントを受け取ったら、終了予定時刻の前に手動でローリング置き換えを行うこともできます。</p>
+
+      <h3>クラスタ・アップグレードとの関係</h3>
+      <p>OS パッチとは別に、クラスタの Kubernetes <strong>バージョンを上げた</strong>場合は Fargate Pod の kubelet もクラスタに合わせて更新する必要があります。Fargate Pod は再作成されて初めて新しいバージョンで起動するため、クラスタ更新後は対象の Deployment 等をローリング再デプロイして Pod を入れ替えます。</p>
+
+      <h2>OKE コントロールプレーンのパッチ適用</h2>
+      <p>OKE では、コントロールプレーン(Kubernetes API server、etcd、スケジューラなどのマスターコンポーネント)は Oracle がフルマネージドで運用します。利用者はコントロールプレーンのノードに直接アクセスしたり手動でパッチを当てたりはしません。</p>
+
+      <h3>脆弱性パッチは Oracle が自動適用</h3>
+      <p>OKE が管理するコントロールプレーンのコンポーネントに<strong>セキュリティ脆弱性が見つかった場合、影響を受けるすべてのクラスタにパッチを当てるのは Oracle の責任</strong>です。利用者の操作は不要で、Oracle が自動的に緩和します。</p>
+
+      <h3>マイナー版アップグレードは「操作は利用者・実行は Oracle」</h3>
+      <p>一方、Kubernetes の<strong>マイナー版アップグレード(例: 1.29 → 1.30)</strong>は共有責任です。Oracle は Console / API / CLI などのインターフェースを提供し、<strong>アップグレードを開始するのは利用者</strong>です。開始後、<strong>実際のコントロールプレーンのアップグレードを実行するのは Oracle</strong> です。OKE は利用者が明示的に開始しない限り、コントロールプレーンの Kubernetes バージョンを勝手には上げません。</p>
+      <pre><code># CLI でコントロールプレーンの Kubernetes 版をアップグレードする例
+oci ce cluster update \
+  --cluster-id ocid1.cluster.oc1..example \
+  --kubernetes-version v1.30.1</code></pre>
+      <p>Oracle は Kubernetes プロジェクトのパッチ版を検証し、重要なパッチ版のサポートを順次リリースします。新しいパッチ版のサポートが通知されたら、対応するマイナー版のクラスタをできるだけ早く最新パッチ版へアップグレードすることが推奨されます。</p>
+
+      <svg viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="OKE コントロールプレーンのアップグレード責任分担図" style="max-width:100%;height:auto;margin:1rem 0">
+        <rect x="20" y="30" width="300" height="140" rx="8" fill="none" stroke="#888"/>
+        <text x="170" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="currentColor">利用者</text>
+        <rect x="45" y="75" width="250" height="34" rx="4" fill="#c74634" opacity="0.15" stroke="#c74634"/>
+        <text x="170" y="97" text-anchor="middle" font-size="12" fill="currentColor">アップグレードを「開始」</text>
+        <text x="170" y="140" text-anchor="middle" font-size="11" fill="currentColor">Console / API / CLI で操作</text>
+
+        <rect x="400" y="30" width="300" height="140" rx="8" fill="none" stroke="#888"/>
+        <text x="550" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="currentColor">Oracle(OKE)</text>
+        <rect x="425" y="75" width="250" height="34" rx="4" fill="#c74634" opacity="0.15" stroke="#c74634"/>
+        <text x="550" y="97" text-anchor="middle" font-size="12" fill="currentColor">アップグレードを「実行」</text>
+        <text x="550" y="140" text-anchor="middle" font-size="11" fill="currentColor">脆弱性パッチは自動適用</text>
+
+        <line x1="320" y1="92" x2="398" y2="92" stroke="#c74634" stroke-width="2" marker-end="url(#arrow)"/>
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 Z" fill="#c74634"/>
+          </marker>
+        </defs>
+      </svg>
+
+      <h3>ワーカーノード(データプレーン)は別責任</h3>
+      <p>参考までに、データプレーン(ワーカーノード)側は責任分担が異なります。データプレーンに脆弱性が見つかった場合、<strong>パッチ済みイメージを提供するのは Oracle、そのイメージでノードを更新するのは利用者</strong>です。マネージドノードなら OS イメージ更新やノード置き換え、仮想ノード(Virtual Nodes)なら OKE がスケーリング・パッチ・コントロールプレーンのアップグレードを含む重要な運用を自動化します。</p>
+
+      <h2>まとめ</h2>
+      <ul>
+        <li><strong>EKS on Fargate</strong>: OS パッチは AWS が自動適用。手当ての方法は「手動パッチ」ではなく「Pod のリサイクルを前提に PDB で無停止性を守る」こと。</li>
+        <li><strong>OKE コントロールプレーン</strong>: 脆弱性パッチは Oracle が自動。利用者が触るのは「マイナー版アップグレードの開始」だけで、実行は Oracle が担う。</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/eks/latest/userguide/fargate-pod-patching.html" rel="noopener">Set actions for AWS Fargate OS patching events - Amazon EKS User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/eks/latest/userguide/fargate.html" rel="noopener">Simplify compute management with AWS Fargate - Amazon EKS User Guide</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengsupportsharedresponsibilities.htm" rel="noopener">Support and Shared Responsibilities - Kubernetes Engine (OKE)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengaboutupgradingclusters.htm" rel="noopener">Upgrading Clusters to Newer Kubernetes Versions - Kubernetes Engine (OKE)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengupgradingk8smasternode.htm" rel="noopener">Upgrading the Kubernetes Version on Control Plane Nodes in a Cluster - Kubernetes Engine (OKE)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
