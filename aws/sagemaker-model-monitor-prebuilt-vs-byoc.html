@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SageMaker Model Monitor の標準コンテナとカスタムコンテナ(BYOC)の違い | maijun の技術質問ノート</title>
+  <meta name="description" content="標準(組み込み)コンテナは表形式データ専用に Deequ で統計量とベースライン比較を自動計算する仕組みで、NLP・CV・embedding などの非構造化データや独自メトリクスの監視にはカスタムコンテナ(BYOC)が必要です。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="SageMaker Model Monitor の標準コンテナとカスタムコンテナ(BYOC)の違い">
+  <meta property="og:description" content="標準(組み込み)コンテナは表形式データ専用に Deequ で統計量とベースライン比較を自動計算する仕組みで、NLP・CV・embedding などの非構造化データや独自メトリクスの監視にはカスタムコンテナ(BYOC)が必要です。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/sagemaker-model-monitor-prebuilt-vs-byoc">
+  <meta property="og:url" content="https://notes.maijun.net/aws/sagemaker-model-monitor-prebuilt-vs-byoc">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=SageMaker%20Model%20Monitor%20%E3%81%AE%E6%A8%99%E6%BA%96%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%E3%81%A8%E3%82%AB%E3%82%B9%E3%82%BF%E3%83%A0%E3%82%B3%E3%83%B3%E3%83%86%E3%83%8A%28BYOC%29%E3%81%AE%E9%81%95%E3%81%84">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-07-11">2026-07-11</time>
+      </p>
+      <h1>SageMaker Model Monitor の標準コンテナとカスタムコンテナ(BYOC)の違い</h1>
+
+      <div class="lead">
+        <p>標準(組み込み)コンテナ <code>sagemaker-model-monitor-analyzer</code> は、<strong>表形式(tabular)データ専用</strong>の分析エンジンです。内部では Apache Spark 上のオープンソースライブラリ <strong>Deequ</strong> が統計量の計算・制約(constraints)の自動提案・違反チェックを行い、コードを書かずに監視を始められます。一方、テキスト・画像・embedding などの<strong>非構造化データ</strong>や、標準にない独自メトリクスを監視したい場合は、Model Monitor の拡張ポイントを使って<strong>カスタムコンテナ(Bring Your Own Container, BYOC)</strong>を Amazon ECR に登録して差し替えます。監視のスケジューリング基盤(SageMaker Processing ジョブ)は両者で共通です。</p>
+      </div>
+
+      <h2>前提:Model Monitor とは何か、4 つの監視タイプ</h2>
+      <p>Amazon SageMaker Model Monitor は、本番環境にデプロイした機械学習モデルの「健康診断」を定期的に自動実行するサービスです。エンドポイントや Batch Transform に流れ込むデータ(とモデルの予測結果)をキャプチャしておき、あらかじめ作った「基準値(baseline)」と比べて、ズレ(ドリフト)があればアラートを出します。公式ドキュメントでは、次の 4 種類の監視タイプが定義されています。</p>
+      <ul>
+        <li><strong>Data Quality</strong>:入力データの統計的な性質(欠損、型、分布など)が学習時からズレていないかを監視する</li>
+        <li><strong>Model Quality</strong>:モデルの予測と人間が付けた正解ラベル(Ground Truth)を突き合わせ、accuracy や RMSE などの精度指標を監視する</li>
+        <li><strong>Bias Drift</strong>:本番の予測に含まれるバイアス(特定属性への偏り)の変化を SageMaker Clarify で監視する</li>
+        <li><strong>Feature Attribution Drift</strong>:「どの特徴量が予測にどれだけ効いているか」(SHAP 値による寄与度)のランキングの変化を SageMaker Clarify で監視する</li>
+      </ul>
+
+      <h2>1. 仕組みの違い:標準コンテナは Deequ で何をしているか</h2>
+      <p>標準コンテナは AWS が提供するビルド済みイメージ <code>sagemaker-model-monitor-analyzer</code> です。公式ドキュメントによると、このイメージは <strong>Apache Spark 3.3.0 と Deequ 2.0.2</strong> をベースに構築されており、次の 4 つの機能を提供します。</p>
+      <ul>
+        <li>制約の自動提案(constraint suggestion)</li>
+        <li>統計量の生成(statistics generation)</li>
+        <li>ベースラインに対する制約の検証(constraint validation)</li>
+        <li>Amazon CloudWatch メトリクスの発行</li>
+      </ul>
+      <p>Deequ は Amazon 社内で開発・利用されている「データの単体テスト」のためのオープンソースライブラリで、列ごとの欠損率・データ型・平均・標準偏差などの統計量を大規模データに対して分散計算します。分位数(中央値など)の計算には <strong>KLL sketch</strong> という、ストリームデータから正確な分位数を効率よく近似するアルゴリズムが使われており、結果は <code>statistics.json</code> に記録されます。</p>
+      <p>運用の流れは「健康診断の基準値づくり → 定期健診」に似ています。まず学習データなどを入力にベースライン処理ジョブを実行すると、統計量 <code>statistics.json</code> と制約 <code>constraints.json</code> が生成されます。その後、監視スケジュール(MonitoringSchedule)が定期的に SageMaker Processing ジョブを起動し、キャプチャ済みの本番データを同じ方法で分析して基準値と比較し、違反があれば <code>constraint_violations.json</code> に出力して CloudWatch メトリクスを発行します。</p>
+
+      <svg viewBox="0 0 760 250" role="img" aria-label="標準コンテナによる監視の流れ" style="max-width:100%; height:auto;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#666"/>
+          </marker>
+        </defs>
+        <rect x="10" y="30" width="170" height="60" rx="8" fill="#e8f0fe" stroke="#4a6fa5"/>
+        <text x="95" y="55" text-anchor="middle" font-size="13" fill="#1a1a2e">学習データ</text>
+        <text x="95" y="75" text-anchor="middle" font-size="12" fill="#555">(baseline 入力)</text>
+        <rect x="230" y="30" width="200" height="60" rx="8" fill="#fff3e0" stroke="#c77d2e"/>
+        <text x="330" y="55" text-anchor="middle" font-size="13" fill="#1a1a2e">ベースラインジョブ</text>
+        <text x="330" y="75" text-anchor="middle" font-size="12" fill="#555">Deequ が統計・制約を生成</text>
+        <rect x="480" y="30" width="240" height="60" rx="8" fill="#f1f8e9" stroke="#5a8f3c"/>
+        <text x="600" y="55" text-anchor="middle" font-size="13" fill="#1a1a2e">statistics.json</text>
+        <text x="600" y="75" text-anchor="middle" font-size="13" fill="#1a1a2e">constraints.json</text>
+        <line x1="180" y1="60" x2="225" y2="60" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="430" y1="60" x2="475" y2="60" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="10" y="160" width="170" height="60" rx="8" fill="#e8f0fe" stroke="#4a6fa5"/>
+        <text x="95" y="185" text-anchor="middle" font-size="13" fill="#1a1a2e">本番のキャプチャ</text>
+        <text x="95" y="205" text-anchor="middle" font-size="12" fill="#555">データ(S3)</text>
+        <rect x="230" y="160" width="200" height="60" rx="8" fill="#fff3e0" stroke="#c77d2e"/>
+        <text x="330" y="185" text-anchor="middle" font-size="13" fill="#1a1a2e">定期監視ジョブ</text>
+        <text x="330" y="205" text-anchor="middle" font-size="12" fill="#555">基準値と比較(検証)</text>
+        <rect x="480" y="160" width="240" height="60" rx="8" fill="#fce4ec" stroke="#b0486e"/>
+        <text x="600" y="185" text-anchor="middle" font-size="13" fill="#1a1a2e">constraint_violations.json</text>
+        <text x="600" y="205" text-anchor="middle" font-size="12" fill="#555">+ CloudWatch メトリクス</text>
+        <line x1="180" y1="190" x2="225" y2="190" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="430" y1="190" x2="475" y2="190" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="600" y1="95" x2="435" y2="160" stroke="#666" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+        <text x="545" y="130" text-anchor="middle" font-size="12" fill="#555">基準値として参照</text>
+      </svg>
+
+      <p>カスタムコンテナ(BYOC)の場合も、この「スケジュールに従って Processing ジョブが起動し、S3 のデータを読んでレポートを書き出す」という枠組み自体はそのまま使われます。違うのは中身で、Deequ の代わりに<strong>自分で書いた分析コード</strong>が実行されます。何をどう計算するか(独自の統計、独自のドリフト判定、LLM の評価など)は完全に自由です。</p>
+
+      <h2>2. 対応できるデータの種類</h2>
+      <p>公式 FAQ に「Model Monitor が統計・メトリクスを計算できるのは表形式データのみ」「NLP や CV(コンピュータビジョン)のモデルを監視したい場合は、Model Monitor が提供する拡張ポイント経由で独自コンテナを持ち込める」と明記されています。</p>
+      <ul>
+        <li><strong>標準コンテナ</strong>:表形式データのみ。入力フォーマットとしてサポートされるのは CSV とフラットな JSON です</li>
+        <li><strong>カスタムコンテナ(BYOC)</strong>:コンテナ内の処理を自分で書くため、テキスト・画像・音声・embedding ベクトルなど任意のデータを扱えます。公式サンプルには、BYOC で LLM(Llama 2)の回答品質を評価・監視する例もあります</li>
+      </ul>
+
+      <h2>3. 監視タイプ別:標準でどこまでできて、どこから BYOC か</h2>
+      <p>4 つの監視タイプは、いずれも<strong>表形式データであれば AWS 提供のビルド済みコンテナだけで完結</strong>します。それぞれの標準機能は次のとおりです。</p>
+      <ul>
+        <li><strong>Data Quality</strong>:標準コンテナ(analyzer)が Deequ で欠損・型・分布の統計を計算し、ベースラインとの差分を検出します。追加コードは不要です</li>
+        <li><strong>Model Quality</strong>:同じ標準コンテナが、キャプチャした予測と S3 にアップロードした Ground Truth ラベルをマージして精度指標を計算します。回帰では MAE・MSE・RMSE・R2、二値分類では混同行列にもとづく accuracy・precision・recall・F1 など、多クラス分類では加重版のメトリクスが標準で計算されます</li>
+        <li><strong>Bias Drift</strong>:SageMaker Clarify のビルド済みコンテナが、本番予測のバイアスメトリクスを定期計算し、信頼区間がしきい値を超えたら違反として報告します</li>
+        <li><strong>Feature Attribution Drift</strong>:SageMaker Clarify が SHAP 値で特徴量の寄与度ランキングを作り、ベースラインとのランキングの一致度を NDCG スコアで比較します。NDCG が 0.90 を下回ると自動でアラートが上がります</li>
+      </ul>
+      <p>カスタムコンテナが必要になるのは、主に次のケースです。</p>
+      <ul>
+        <li>入力が表形式でない(テキスト、画像、embedding、LLM の出力など)</li>
+        <li>標準メトリクスにない独自の統計・ドリフト検知アルゴリズム・評価ロジックを使いたい</li>
+        <li>前処理・後処理スクリプトの差し込みでは足りないほど、分析処理そのものを作り替えたい</li>
+      </ul>
+      <p>なお、BYOC の拡張ポイント(コンテナコントラクト)が公式に文書化されているのは Model Monitor(Data Quality 系の汎用監視)側です。Bias Drift と Feature Attribution Drift は Clarify 専用コンテナで動く前提で説明されており、これらの分析を独自ロジックに置き換えたい場合は、汎用の監視スケジュール + カスタムコンテナとして自作する形になります(Clarify コンテナ自体を差し替える公式手順は確認できませんでした)。</p>
+
+      <h2>4. カスタムコンテナ(BYOC)を自作する大まかな流れ</h2>
+      <p>Model Monitor の監視スケジュールは、裏では SageMaker Processing ジョブを起動します。そのため BYOC は「Processing ジョブのコントラクト(約束事)を守るコンテナ」を作る作業になります。手順の骨子は次のとおりです。</p>
+      <ol>
+        <li><strong>分析コードを書く</strong>:コンテナ起動時に実行されるスクリプトが、環境変数からコンテキストを受け取ってデータを分析します。主な環境変数には、入力データの場所 <code>dataset_source</code>(例: <code>/opt/ml/processing/endpointdata</code>)、出力先 <code>output_path</code>(例: <code>/opt/ml/processing/resultdata</code>)、分析対象期間の <code>start_time</code> / <code>end_time</code>、ベースラインの統計・制約ファイルのパス、<code>publish_cloudwatch_metrics</code> などがあります</li>
+        <li><strong>レポートを規約どおりに出力する</strong>:分析結果は <code>output_path</code> に書き出すと S3 へ自動アップロードされます。<code>statistics.json</code>・<code>constraints.json</code>・<code>constraint_violations.json</code> という標準スキーマに従って出力すると、SageMaker 側の可視化や API で特別扱いされます(この特別扱いは表形式データの場合のみ)。CloudWatch メトリクスを出したい場合は <code>/opt/ml/output/metrics/cloudwatch</code> に規定フォーマットで書き込みます</li>
+        <li><strong>Docker イメージをビルドして Amazon ECR にプッシュする</strong></li>
+        <li><strong>監視スケジュールに独自イメージを指定する</strong>:SageMaker Python SDK の汎用 <code>ModelMonitor</code> クラスに <code>image_uri</code> として ECR のイメージを渡し、<code>create_monitoring_schedule()</code> でスケジュールを作成します</li>
+      </ol>
+      <pre><code># 3. ECR へ登録(リージョン・アカウントはダミー値)
+aws ecr create-repository --repository-name my-model-monitor
+docker build -t my-model-monitor .
+docker tag my-model-monitor:latest \
+  123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-model-monitor:latest
+docker push 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-model-monitor:latest</code></pre>
+      <pre><code># 4. SageMaker Python SDK で独自イメージを監視スケジュールに指定
+from sagemaker.model_monitor import ModelMonitor
+
+monitor = ModelMonitor(
+    role=role,
+    image_uri="123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-model-monitor:latest",
+    instance_count=1,
+    instance_type="ml.m5.xlarge",
+)
+monitor.create_monitoring_schedule(
+    endpoint_input=endpoint_name,
+    output=MonitoringOutput(source="/opt/ml/processing/resultdata", destination=s3_report_path),
+    schedule_cron_expression=CronExpressionGenerator.hourly(),
+)</code></pre>
+
+      <h2>5. 試験対策:標準か BYOC かを見分けるキーワード</h2>
+      <p>AWS 認定 Machine Learning Engineer - Associate 相当の問題では、問題文中のデータ種別とメトリクスの種類に注目すると判断できます。</p>
+      <ul>
+        <li><strong>「表形式 / CSV / JSON」+「欠損・分布・スキーマのドリフト」</strong> → Data Quality の標準コンテナで対応可能。「Deequ」という単語が出たら標準コンテナの内部実装のことです</li>
+        <li><strong>「accuracy / precision / recall / F1 / RMSE / MAE / R2 の劣化を監視」+「Ground Truth ラベルと突き合わせ」</strong> → Model Quality の標準機能</li>
+        <li><strong>「バイアスの変化を監視」「特徴量の寄与度(SHAP)の変化を監視」</strong> → SageMaker Clarify のビルド済みコンテナ(Bias Drift / Feature Attribution Drift)。これも自作不要です</li>
+        <li><strong>「テキスト / 画像 / NLP / CV / embedding / LLM」「独自メトリクス」「カスタムのドリフト検知アルゴリズム」</strong> → 標準コンテナは表形式のみなので BYOC が必要。「extension points(拡張ポイント)」「ECR にプッシュ」「ModelMonitor クラスに image_uri を指定」が解答側のキーワードになります</li>
+        <li>迷ったら「<strong>表形式+標準メトリクス=標準コンテナ、それ以外=BYOC</strong>」と覚えるのが近道です。また、軽微なカスタマイズ(入力の変換など)なら、コンテナを作らず前処理・後処理スクリプトで済む場合がある点も押さえておくと安心です</li>
+      </ul>
+
+      <h2>6. 比較表:できること / できないこと</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>観点</th>
+            <th>標準(組み込み)コンテナ</th>
+            <th>カスタムコンテナ(BYOC)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>対応データ</td>
+            <td>表形式のみ(CSV / フラット JSON)</td>
+            <td>任意(テキスト・画像・embedding・LLM 出力など)</td>
+          </tr>
+          <tr>
+            <td>分析エンジン</td>
+            <td>Deequ 2.0.2(Apache Spark 3.3.0)</td>
+            <td>自作コード(言語・ライブラリは自由)</td>
+          </tr>
+          <tr>
+            <td>ベースライン(制約)の自動提案</td>
+            <td>できる(statistics.json / constraints.json を自動生成)</td>
+            <td>自分で実装が必要</td>
+          </tr>
+          <tr>
+            <td>4 つの監視タイプ</td>
+            <td>表形式データならすべて標準対応(Bias / Feature Attribution は Clarify コンテナ)</td>
+            <td>独自メトリクス・非表形式データの監視を自由に実装できる</td>
+          </tr>
+          <tr>
+            <td>CloudWatch メトリクス発行</td>
+            <td>自動</td>
+            <td>可能(/opt/ml/output/metrics/cloudwatch に規定形式で出力)</td>
+          </tr>
+          <tr>
+            <td>SageMaker の可視化・API 連携</td>
+            <td>そのまま利用可能</td>
+            <td>標準の JSON スキーマに従えば利用可能(表形式の場合のみ)</td>
+          </tr>
+          <tr>
+            <td>実装・運用の手間</td>
+            <td>ほぼゼロ(設定のみ)</td>
+            <td>コンテナの開発・ECR 管理・メンテナンスが必要</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html" rel="noopener">Data and model quality monitoring with Amazon SageMaker Model Monitor(4 つの監視タイプの定義)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-pre-built-container.html" rel="noopener">Amazon SageMaker Model Monitor prebuilt container(analyzer イメージ、Spark 3.3.0 / Deequ 2.0.2、CSV・フラット JSON 対応)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-faqs.html" rel="noopener">Model Monitor FAQs(表形式のみ対応、NLP / CV は BYOC で対応の明記)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-interpreting-statistics.html" rel="noopener">Schema for Statistics(statistics.json、Deequ と KLL sketch)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-byoc-containers.html" rel="noopener">Support for Your Own Containers With Amazon SageMaker Model Monitor</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-byoc-contract-inputs.html" rel="noopener">Container Contract Inputs(BYOC の環境変数と入力パス)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-byoc-contract-outputs.html" rel="noopener">Container Contract Outputs(BYOC の出力規約)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor-model-quality-metrics.html" rel="noopener">Model quality metrics(回帰・二値分類・多クラス分類のメトリクス)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-bias-drift.html" rel="noopener">Bias drift for models in production(SageMaker Clarify)</a></li>
+          <li><a href="https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-model-monitor-feature-attribution-drift.html" rel="noopener">Feature attribution drift for models in production(SHAP と NDCG、しきい値 0.90)</a></li>
+          <li><a href="https://aws.amazon.com/blogs/machine-learning/customized-model-monitoring-for-near-real-time-batch-inference-with-amazon-sagemaker/" rel="noopener">AWS 公式ブログ: Customized model monitoring for near real-time batch inference with Amazon SageMaker(BYOC の実装例)</a></li>
+          <li><a href="https://sagemaker-examples.readthedocs.io/en/latest/sagemaker_model_monitor/llm_multiple_evals_monitor_byoc/byoc_llm_multiple_evals_monitor.html" rel="noopener">Amazon SageMaker Examples: BYOC LLM Monitoring(BYOC で LLM を監視する公式サンプル)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
