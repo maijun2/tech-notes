@@ -206,5 +206,13 @@
     "date": "2026-07-07",
     "summary": "OKE の仮想ノード・プールでもオンデマンドのノード・サイクリングがサポートされ、UpdateVirtualNodePool で isVirtualNodeCyclingEnabled を有効にすると、既存の仮想ノードを新しい構成のノードへ自動的に順次置き換えられます。",
     "tags": ["OKE", "Virtual Nodes", "Node Cycling", "Kubernetes"]
+  },
+  {
+    "title": "SageMaker Model Monitor の標準コンテナとカスタムコンテナ(BYOC)の違い",
+    "category": "aws",
+    "path": "aws/sagemaker-model-monitor-prebuilt-vs-byoc.html",
+    "date": "2026-07-11",
+    "summary": "標準(組み込み)コンテナは表形式データ専用に Deequ で統計量とベースライン比較を自動計算する仕組みで、NLP・CV・embedding などの非構造化データや独自メトリクスの監視にはカスタムコンテナ(BYOC)が必要です。",
+    "tags": ["SageMaker", "Model Monitor", "BYOC", "Deequ", "Clarify", "MLOps"]
   }
 ]
