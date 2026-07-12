@@ -1,5 +1,13 @@
 [
   {
+    "title": "Claude Fable 5 の利用期間が延長された経緯",
+    "category": "misc",
+    "path": "misc/claude-fable-5-usage-extension.html",
+    "date": "2026-07-12",
+    "summary": "Claude Fable 5 の有料プラン向け追加料金なし提供は当初 2026年7月7日までの予定でしたが、7月12日、さらに 7月19日(いずれも太平洋時間)へと 2 度延長されました。",
+    "tags": ["Claude", "Fable 5", "Anthropic", "生成AI", "輸出管理", "プロモーション", "Usage Credits"]
+  },
+  {
     "title": "EKS on Fargate と OKE コントロールプレーンのパッチ適用",
     "category": "misc",
     "path": "misc/eks-fargate-oke-control-plane-patching.html",
