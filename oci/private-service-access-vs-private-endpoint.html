@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCI Private Service Access とは — Private Endpoint との違いと作成手順 | maijun の技術質問ノート</title>
+  <meta name="description" content="Private Service Access(PSA)は「サービス API 単位」で VCN 内に専用のプライベート IP と FQDN を作る機能で、リソース単位の Private Endpoint と違い、サービスの標準 FQDN のままコード変更なしにインターネット非経由のアクセスへ切り替えられます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="OCI Private Service Access とは — Private Endpoint との違いと作成手順">
+  <meta property="og:description" content="Private Service Access(PSA)は「サービス API 単位」で VCN 内に専用のプライベート IP と FQDN を作る機能で、リソース単位の Private Endpoint と違い、サービスの標準 FQDN のままコード変更なしにインターネット非経由のアクセスへ切り替えられます。">
+  <link rel="canonical" href="https://notes.maijun.net/oci/private-service-access-vs-private-endpoint">
+  <meta property="og:url" content="https://notes.maijun.net/oci/private-service-access-vs-private-endpoint">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=OCI%20Private%20Service%20Access%20%E3%81%A8%E3%81%AF%20%E2%80%94%20Private%20Endpoint%20%E3%81%A8%E3%81%AE%E9%81%95%E3%81%84%E3%81%A8%E4%BD%9C%E6%88%90%E6%89%8B%E9%A0%86">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time data-pagefind-meta="date" datetime="2026-07-14">2026-07-14</time>
+      </p>
+      <h1>OCI Private Service Access とは — Private Endpoint との違いと作成手順</h1>
+
+      <div class="lead">
+        <p>Private Service Access(PSA)は、Object Storage などの OCI サービスの「サービス API 単位」で、VCN 内のサブネットに専用のプライベート IP と FQDN を持つエンドポイントを作る機能です。特定の Autonomous Database 1 台のような「リソース単位」でプライベート IP を作る Private Endpoint とは、この対象の粒度が最大の違いです。PSA を作成すると VCN のプライベート DNS が自動更新され、サービスの標準 FQDN がそのままプライベート IP に解決されるため、アプリケーションのコードや接続先 URL を一切変更せずにインターネット非経由の通信へ切り替えられます。追加料金は不要です。</p>
+      </div>
+
+      <h2>Private Service Access(PSA)の概要</h2>
+      <p>PSA は、VCN またはオンプレミスネットワーク内のワークロードから、パブリックインターネットを経由せずに OCI サービス(OCI API、Object Storage、Yum リポジトリ、Container Registry など)へアクセスするための仕組みです。作成すると、指定したサブネット内に専用のプライベート IP アドレスと FQDN を持つ「PSA エンドポイント」ができます。</p>
+      <ul>
+        <li>PSA エンドポイントは VCN 内のもう 1 つの VNIC のように振る舞い、セキュリティリスト・Network Security Group(NSG)・Zero Trust Packet Routing(ZPR)のセキュリティ属性でアクセスを制御できます</li>
+        <li>1 つの PSA エンドポイントは 1 つのサービス API 専用です。同じ VCN で複数サービスを使う場合はサービスごとに作成します</li>
+        <li>サブネットがどれであっても、同じ VCN 内のすべてのワークロードから利用できます</li>
+        <li>IPv4 のみ、または IPv4/IPv6 デュアルスタックのネットワークで利用できます</li>
+        <li>スループットは最大 8 Gb/秒(Object Storage は最大 25 Gb/秒)で、フォルトドメイン・可用性ドメインのフェイルオーバーが組み込まれています</li>
+        <li>利用に追加料金はかかりません</li>
+      </ul>
+
+      <h2>Private Endpoint との違い — 「リソース単位」か「サービス API 単位」か</h2>
+      <p>質問のとおり、両者の本質的な違いは対象の粒度です。あわせて、従来からある Service Gateway とも比較すると位置づけが分かりやすくなります。</p>
+      <table>
+        <thead>
+          <tr><th>観点</th><th>Private Service Access(PSA)</th><th>Private Endpoint(PE)</th><th>Service Gateway(SGW)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>対象の粒度</td><td>サービス API 単位(例: リージョンの Object Storage API 全体)</td><td>リソース単位(例: 特定の Autonomous Database、特定の Object Storage 名前空間)</td><td>リージョンの対応サービス全体(広範)</td></tr>
+          <tr><td>VCN 内の実体</td><td>専用のプライベート IP + FQDN(VNIC 相当)</td><td>リソースごとのプライベート IP + 専用 FQDN</td><td>ルートターゲットのみ(IP は持たない)</td></tr>
+          <tr><td>DNS / 接続先 URL</td><td>サービスの標準 FQDN がそのままプライベート IP に解決(コード変更不要)</td><td>リソース専用の FQDN を使う(接続先の変更が必要な場合あり)</td><td>標準 FQDN のまま(パブリック IP 宛をルートで吸収)</td></tr>
+          <tr><td>アクセス制御</td><td>セキュリティリスト / NSG / ZPR で IP 単位に制御可能</td><td>エンドポイントごとに細かく制御可能</td><td>ルートとセキュリティルールのみ(粒度が粗い)</td></tr>
+          <tr><td>向いている場面</td><td>URL を変えずにサービス単位で私設化・厳格化したい</td><td>特定リソースだけに閉じたアクセスを許可したい</td><td>手早く広範に私設アクセスを確保したい</td></tr>
+        </tbody>
+      </table>
+      <p>つまり、「この VCN から使う Object Storage API への経路を丸ごとプライベートにしたい」なら PSA、「この Autonomous Database 1 台だけに VCN 内からのアクセスを閉じたい」なら Private Endpoint、という使い分けになります。3 つとも OCI ネットワーク内に通信を閉じ込める点は共通です。</p>
+
+      <svg viewBox="0 0 720 300" role="img" aria-label="PSA と Private Endpoint の違いの図" style="max-width:100%;height:auto">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker>
+        </defs>
+        <rect x="10" y="30" width="330" height="240" rx="10" fill="#eef4fb" stroke="#4a7ab5"/>
+        <text x="175" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#2c5282">PSA(サービス API 単位)</text>
+        <rect x="35" y="80" width="120" height="40" rx="6" fill="#fff" stroke="#888"/>
+        <text x="95" y="105" text-anchor="middle" font-size="12">VCN 内の VM</text>
+        <rect x="35" y="150" width="120" height="46" rx="6" fill="#fff3cd" stroke="#c9a227"/>
+        <text x="95" y="169" text-anchor="middle" font-size="11">PSA エンドポイント</text>
+        <text x="95" y="186" text-anchor="middle" font-size="11">10.0.1.10(私設 IP)</text>
+        <rect x="200" y="150" width="120" height="46" rx="6" fill="#e6f4ea" stroke="#3a8a4d"/>
+        <text x="260" y="169" text-anchor="middle" font-size="11">Object Storage</text>
+        <text x="260" y="186" text-anchor="middle" font-size="11">API 全体</text>
+        <line x1="95" y1="120" x2="95" y2="148" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="157" y1="173" x2="198" y2="173" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="175" y="235" text-anchor="middle" font-size="11" fill="#444">標準 FQDN が私設 IP に解決(URL 変更不要)</text>
+
+        <rect x="380" y="30" width="330" height="240" rx="10" fill="#fbeef2" stroke="#b54a6e"/>
+        <text x="545" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#822c4a">Private Endpoint(リソース単位)</text>
+        <rect x="405" y="80" width="120" height="40" rx="6" fill="#fff" stroke="#888"/>
+        <text x="465" y="105" text-anchor="middle" font-size="12">VCN 内の VM</text>
+        <rect x="405" y="150" width="120" height="46" rx="6" fill="#fff3cd" stroke="#c9a227"/>
+        <text x="465" y="169" text-anchor="middle" font-size="11">Private Endpoint</text>
+        <text x="465" y="186" text-anchor="middle" font-size="11">10.0.2.20(私設 IP)</text>
+        <rect x="570" y="150" width="120" height="46" rx="6" fill="#e6f4ea" stroke="#3a8a4d"/>
+        <text x="630" y="169" text-anchor="middle" font-size="11">特定リソース</text>
+        <text x="630" y="186" text-anchor="middle" font-size="11">(ADB 1 台など)</text>
+        <line x1="465" y1="120" x2="465" y2="148" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="527" y1="173" x2="568" y2="173" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
+        <text x="545" y="235" text-anchor="middle" font-size="11" fill="#444">リソース専用の FQDN と IP でアクセスを閉じる</text>
+      </svg>
+
+      <h2>PSA の具体的な利用メリット</h2>
+      <ul>
+        <li><strong>コード変更ゼロで私設化できる</strong>: PSA 作成時に VCN のプライベート DNS リゾルバが自動更新され、対象サービスの標準 FQDN が PSA のプライベート IP に解決されます。SDK・CLI・Terraform も通常のサービス URL のまま動作します</li>
+        <li><strong>サービス単位のきめ細かい制御</strong>: Service Gateway のように「リージョンの対応サービス全部」を一括で通すのではなく、必要なサービスだけに私設経路を開けられます。PSA エンドポイントは実 IP を持つため、NSG・セキュリティリスト・ZPR で「どのワークロードがどのサービスに到達できるか」を制御できます</li>
+        <li><strong>テナンシ外への持ち出しを抑止</strong>: PSA 経由のアクセスには自テナンシの認証情報が必要で、他テナンシ宛の利用を防げます(データ持ち出し対策)</li>
+        <li><strong>オンプレミスからも利用可能</strong>: FastConnect や Site-to-Site VPN で DRG 経由に接続し、オンプレミスの DNS から VCN リゾルバのリスニングエンドポイントへフォワードすれば、オンプレミスのワークロードもインターネットを経由せずに OCI サービスへ到達できます</li>
+        <li><strong>追加コストなし・高スループット</strong>: 利用は無料で、最大 8 Gb/秒(Object Storage は 25 Gb/秒)、フォルトドメイン/可用性ドメイン障害時のフェイルオーバーも組み込まれています</li>
+        <li><strong>Service Gateway と共存可能</strong>: 既存の Service Gateway 構成を残したまま、機微なサービスから段階的に PSA へ移行できます</li>
+      </ul>
+
+      <h2>作成手順(コンソール)</h2>
+      <p>前提として、PSA エンドポイントを配置する VCN とサブネットが必要です。手順は次のとおりです。</p>
+      <ol>
+        <li>コンソールで対象の VCN の詳細ページを開き、「Private service access」タブで「Create」を選択します</li>
+        <li>PSA エンドポイントの名前を入力し、作成先のコンパートメントを確認します</li>
+        <li>「Service」セクションで、アクセスを有効にしたい Oracle Services Network(OSN)のサービスを 1 つ選択します(1 エンドポイントにつき 1 サービス)</li>
+        <li>「Network」セクションで、エンドポイントを配置するサブネットのコンパートメントとサブネットを選択します</li>
+        <li>プライベート IPv4 アドレスの割り当て方法を選びます。自動割り当て(サブネットの空き IP から動的に割り当てる ephemeral、または予約済みプライベート IP を使う persistent)か、手動割り当て(アドレスを直接入力、または既存の予約済み IP から選択)を指定できます</li>
+        <li>(任意)ZPR のセキュリティ属性を付与し、作成を実行します</li>
+      </ol>
+      <p>作成後は、VCN 内のインスタンスから対象サービスの FQDN が PSA のプライベート IP に解決されることを確認します。</p>
+      <pre><code># Object Storage の FQDN が PSA のプライベート IP に解決されるか確認
+# (リージョンとネームスペースは環境に合わせて読み替え)
+nslookup objectstorage.ap-tokyo-1.oraclecloud.com
+
+# 期待値: PSA エンドポイントに割り当てたプライベート IP(例: 10.0.1.10)が返る
+# その後は通常どおり CLI / SDK を使うだけで経路がプライベートになる
+oci os bucket list --compartment-id &lt;compartment-ocid&gt;</code></pre>
+      <p>あわせて、PSA エンドポイントを配置したサブネットのセキュリティリスト(または PSA に付けた NSG)で、利用元ワークロードからの HTTPS(443/TCP)受信を許可しておきます。CLI で管理する場合は <code>oci psa private-service-access</code> コマンド群が利用できます。</p>
+
+      <h2>補足: 対応サービスと注意点</h2>
+      <ul>
+        <li>対応サービスの代表例は OCI API、Object Storage、Yum リポジトリ、Container Registry(OCIR)です。最新の対応サービス一覧は公式ドキュメントで確認してください</li>
+        <li>PSA エンドポイントは VCN 単位に作るため、複数の VCN から使う場合はそれぞれの VCN に作成が必要です</li>
+        <li>Private Endpoint は Object Storage や Autonomous Database などサービス側の機能として提供されており、リソースやネームスペースを限定した閉域アクセスが必要な場合はそちらを選択します</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/private-service-access.htm" rel="noopener">Access to Oracle Services: Private Service Access Endpoints(OCI 公式ドキュメント)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/psa-create.htm" rel="noopener">Creating a PSA Endpoint(OCI 公式ドキュメント)</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/privateaccess.htm" rel="noopener">Private Access — 私設アクセスオプションの比較(OCI 公式ドキュメント)</a></li>
+          <li><a href="https://docs.oracle.com/en/learn/private-service-access-config/index.html" rel="noopener">Configure Private Service Access (PSA) in OCI(Oracle Learn チュートリアル)</a></li>
+          <li><a href="https://www.oracle.com/cloud/networking/private-service-access/" rel="noopener">Private Service Access (PSA) 製品ページ(Oracle)</a></li>
+          <li><a href="https://blogs.oracle.com/cloud-infrastructure/announcing-private-service-access" rel="noopener">Announcing Private Service Access(Oracle Cloud Infrastructure Blog)</a></li>
+          <li><a href="https://www.ateam-oracle.com/service-gateway-vs-private-endpoint-vs-private-service-access-in-oci-a-practical-decision-guide" rel="noopener">Service Gateway vs Private Endpoint vs Private Service Access(Oracle A-Team)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../oci.html">← OCI の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
