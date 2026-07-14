@@ -1,5 +1,13 @@
 [
   {
+    "title": "OCI Private Service Access とは — Private Endpoint との違いと作成手順",
+    "category": "oci",
+    "path": "oci/private-service-access-vs-private-endpoint.html",
+    "date": "2026-07-14",
+    "summary": "Private Service Access(PSA)は「サービス API 単位」で VCN 内に専用のプライベート IP と FQDN を作る機能で、リソース単位の Private Endpoint と違い、サービスの標準 FQDN のままコード変更なしにインターネット非経由のアクセスへ切り替えられます。",
+    "tags": ["Private Service Access", "PSA", "Private Endpoint", "Service Gateway", "VCN", "Private DNS", "Object Storage", "ネットワーク"]
+  },
+  {
     "title": "Claude Fable 5 の利用期間が延長された経緯",
     "category": "misc",
     "path": "misc/claude-fable-5-usage-extension.html",
