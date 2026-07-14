@@ -1,5 +1,13 @@
 [
   {
+    "title": "OCI のサービス制限とコンパートメントクォータの違い",
+    "category": "oci",
+    "path": "oci/service-limits-vs-compartment-quotas.html",
+    "date": "2026-07-14",
+    "summary": "サービス制限(Service Limits)は Oracle がテナンシ全体に対して設定する資源の上限で、コンパートメントクォータ(Compartment Quotas)は顧客の管理者がその上限の範囲内でコンパートメント単位に資源を配分する仕組みです。",
+    "tags": ["Service Limits", "Compartment Quotas", "サービス制限", "クォータ", "ガバナンス", "テナンシ", "コンパートメント", "Limits API"]
+  },
+  {
     "title": "OCI Private Service Access とは — Private Endpoint との違いと作成手順",
     "category": "oci",
     "path": "oci/private-service-access-vs-private-endpoint.html",

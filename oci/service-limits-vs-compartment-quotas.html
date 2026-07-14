@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCI のサービス制限とコンパートメントクォータの違い | maijun の技術質問ノート</title>
+  <meta name="description" content="サービス制限は Oracle がテナンシ全体に設ける資源の上限、コンパートメントクォータは管理者がその範囲内でコンパートメントごとに資源を配分する仕組みです。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="OCI のサービス制限とコンパートメントクォータの違い">
+  <meta property="og:description" content="サービス制限は Oracle がテナンシ全体に設ける資源の上限、コンパートメントクォータは管理者がその範囲内でコンパートメントごとに資源を配分する仕組みです。">
+  <link rel="canonical" href="https://notes.maijun.net/oci/service-limits-vs-compartment-quotas">
+  <meta property="og:url" content="https://notes.maijun.net/oci/service-limits-vs-compartment-quotas">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=OCI%20%E3%81%AE%E3%82%B5%E3%83%BC%E3%83%93%E3%82%B9%E5%88%B6%E9%99%90%E3%81%A8%E3%82%B3%E3%83%B3%E3%83%91%E3%83%BC%E3%83%88%E3%83%A1%E3%83%B3%E3%83%88%E3%82%AF%E3%82%A9%E3%83%BC%E3%82%BF%E3%81%AE%E9%81%95%E3%81%84">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time data-pagefind-meta="date" datetime="2026-07-14">2026-07-14</time>
+      </p>
+      <h1>OCI のサービス制限とコンパートメントクォータの違い</h1>
+
+      <div class="lead">
+        <p>サービス制限(Service Limits)は <strong>Oracle がテナンシ全体に対して設定する</strong>資源の上限で、コンパートメントクォータ(Compartment Quotas)は<strong>顧客の管理者がその上限の範囲内で</strong>コンパートメント単位に資源を配分する仕組みです。つまり「テナンシで使える総量を決めるのが Oracle のサービス制限、その総量を社内のチームやプロジェクトへどう割り振るかを決めるのがクォータ」という役割分担です。サービス制限がテナンシレベルにあるのは、Oracle がリージョン/可用性ドメイン(AD)の物理キャパシティを計画・確保し、利用者を想定外の消費とコストから守るためです。</p>
+      </div>
+
+      <h2>2 つの仕組みの比較</h2>
+      <table>
+        <thead>
+          <tr><th>観点</th><th>サービス制限</th><th>コンパートメントクォータ</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>設定する人</td><td>Oracle(テナンシ作成時に既定値が付与)</td><td>顧客のテナンシ管理者</td></tr>
+          <tr><td>適用範囲</td><td>テナンシ全体(制限ごとにリージョン単位・AD 単位・リソース単位のスコープがある)</td><td>指定したコンパートメント(リージョン条件も付けられる)</td></tr>
+          <tr><td>主な目的</td><td>Oracle 側のキャパシティ確保と、想定外の大量消費・コストからの保護</td><td>テナンシ内での資源配分・ガバナンス・コスト統制</td></tr>
+          <tr><td>変更方法</td><td>コンソールから制限引き上げをリクエストし、Oracle が承認</td><td>クォータポリシー文を管理者が自分で作成・編集(即時反映)</td></tr>
+          <tr><td>上下関係</td><td colspan="2">クォータはサービス制限を超えられない(制限が天井、クォータはその配分)</td></tr>
+        </tbody>
+      </table>
+
+      <svg viewBox="0 0 640 300" role="img" aria-label="サービス制限がテナンシの天井、クォータがその内側の配分であることを示す図" style="max-width:100%; height:auto;">
+        <rect x="10" y="10" width="620" height="280" rx="10" fill="none" stroke="#c74634" stroke-width="3"/>
+        <text x="30" y="42" font-size="16" fill="#c74634" font-weight="bold">テナンシ</text>
+        <text x="30" y="66" font-size="13" fill="#c74634">サービス制限 = Oracle が設定する天井(例: E4 コア合計 100)</text>
+        <rect x="30" y="90" width="180" height="150" rx="8" fill="#eef4fb" stroke="#3d6fa5" stroke-width="2"/>
+        <text x="45" y="118" font-size="14" fill="#1f3f5f" font-weight="bold">開発用</text>
+        <text x="45" y="142" font-size="12" fill="#1f3f5f">コンパートメント</text>
+        <text x="45" y="172" font-size="13" fill="#1f3f5f">クォータ: 20 コア</text>
+        <rect x="230" y="90" width="180" height="150" rx="8" fill="#eef4fb" stroke="#3d6fa5" stroke-width="2"/>
+        <text x="245" y="118" font-size="14" fill="#1f3f5f" font-weight="bold">本番用</text>
+        <text x="245" y="142" font-size="12" fill="#1f3f5f">コンパートメント</text>
+        <text x="245" y="172" font-size="13" fill="#1f3f5f">クォータ: 60 コア</text>
+        <rect x="430" y="90" width="180" height="150" rx="8" fill="#f6f6f6" stroke="#888" stroke-width="2" stroke-dasharray="6 4"/>
+        <text x="445" y="118" font-size="14" fill="#555" font-weight="bold">検証用</text>
+        <text x="445" y="142" font-size="12" fill="#555">コンパートメント</text>
+        <text x="445" y="172" font-size="13" fill="#555">クォータ: 0(利用禁止)</text>
+        <text x="30" y="272" font-size="13" fill="#333">クォータ = 管理者が天井の内側で配分するルール</text>
+      </svg>
+
+      <h2>サービス制限とは — Oracle が決めるテナンシの天井</h2>
+      <p>サービス制限は、テナンシで作成できるリソース量の上限(リソース許容量)で、テナンシへのサインアップ時に Oracle によって既定値が設定されます。トライアルや Free Tier のテナンシには小さめの制限が付き、営業経由の契約では契約内容に応じた制限が設定されます。制限ごとにスコープが決まっており、リージョン単位のもの、AD 単位のもの(例: Database 系)、リソース単位のものがあります。あるスコープで制限に達しても、別の AD などほかのスコープには空きが残っている場合があります。</p>
+      <p>現在の制限値と使用量はコンソールの「Limits, Quotas and Usage(制限、クォータおよび使用状況)」ページか、Limits API / CLI で確認できます。</p>
+      <pre><code># テナンシの Compute サービス制限の一覧を表示(テナンシ OCID はダミー値)
+oci limits value list \
+  --compartment-id ocid1.tenancy.oc1..example \
+  --service-name compute</code></pre>
+      <p>制限を超えるリソース作成はエラーになります。不足する場合はコンソールから引き上げリクエストを送り、Oracle の承認後に反映されます。クォータと違い、顧客側で直接値を書き換えることはできません。</p>
+
+      <h2>コンパートメントクォータとは — 管理者が決める配分ルール</h2>
+      <p>コンパートメントクォータは、テナンシ管理者が IAM ポリシーに似た宣言的なポリシー文で作成する、コンパートメント単位の資源上限です。キーワードは <code>set</code>(上限を設定)、<code>unset</code>(既定に戻す)、<code>zero</code>(利用を禁止)の 3 つです。</p>
+      <pre><code># 開発用コンパートメントの E4 標準コアを 20 に制限
+set compute-core quota standard-e4-core-count to 20 in compartment Dev
+
+# 検証用コンパートメントでは Compute コアを一切使わせない
+zero compute-core quotas in compartment Sandbox
+
+# ホワイトリスト方式: いったん全部ゼロにして、必要なものだけ許可
+zero compute-core quotas in tenancy
+set compute-core quota standard-e4-core-count to 240 in tenancy
+
+# リージョン条件付き: 東京リージョンのみ 40 コアまで
+set compute-core quota standard-e4-core-count to 40
+  in compartment Dev where request.region = 'ap-tokyo-1'</code></pre>
+      <p>クォータはあくまで「テナンシに与えられた総量(サービス制限)を内側で切り分ける」仕組みなので、サービス制限を超える値を設定しても実際にはサービス制限までしか使えません。逆に <code>zero</code> を使えば、契約上は使えるサービスを特定のコンパートメントで意図的に封じる、といったガバナンス統制ができます。</p>
+
+      <h2>なぜサービス制限は「テナンシレベル」にあるのか</h2>
+      <p>公式ドキュメントは、サービス制限の役割を「想定外の消費急増とコストから利用者を守ること」と「ワークロードに必要な資源量を Oracle に伝え、必要なときに資源が確実に使えるようにすること」と説明しています。これがテナンシレベルである理由は、次のように整理できます。</p>
+      <ul>
+        <li><strong>物理キャパシティの計画単位が「契約=テナンシ」だから</strong>: リージョンや AD のサーバー・ストレージは有限の物理資産で、Oracle はテナンシごとに宣言された上限をもとにデータセンターの容量を計画します。コンパートメントは顧客が論理的に自由に作れる箱にすぎず、Oracle 側の容量計画の単位にはなり得ません。だからこそ、内側の配分は顧客自身がクォータで行う設計になっています。</li>
+        <li><strong>請求と保護の単位もテナンシだから</strong>: 認証情報の漏えいやスクリプトの暴走でリソースが大量作成されても、テナンシの天井で被害(コスト)が頭打ちになります。トライアルテナンシの制限が特に小さいのも、この保護と不正利用対策のためです。</li>
+        <li><strong>可用性設計の前提になるから</strong>: ベストプラクティスでは、ピーク時の必要量に加えて「AD 障害時に別の AD へフェイルオーバーできるだけの余裕」を制限として確保しておくことが推奨されています。これもテナンシ全体で見積もる話です。</li>
+      </ul>
+      <p><strong>具体例</strong>を挙げます。ある会社が新サービスのローンチに向けて、東京リージョンで E4 標準コアを 500 コア使う計画を立てたとします。テナンシの既定制限が 100 コアのままだと、ローンチ当日に 101 コア目のインスタンス作成が制限超過エラーで失敗します。事前に制限引き上げをリクエストしておけば、Oracle は東京リージョンの AD にそのぶんの物理キャパシティを見込んで確保できるため、必要なときに確実にプロビジョニングできます。引き上げ後は、管理者がクォータで「本番コンパートメントに 400、開発に 80、検証は 0」のように内訳を統制する、というのが両者を組み合わせた典型的な運用です。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm" rel="noopener">Service Limits - Oracle Cloud Infrastructure Documentation</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Quotas/Concepts/resourcequotas.htm" rel="noopener">Overview of Compartment Quotas - Oracle Cloud Infrastructure Documentation</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/Content/Quotas/Concepts/quota_policy_syntax.htm" rel="noopener">Quota Policy Syntax - Oracle Cloud Infrastructure Documentation</a></li>
+          <li><a href="https://docs.oracle.com/en/solutions/oci-best-practices/manage-your-service-limits1.html" rel="noopener">Manage Your Service Limits - Best practices framework for OCI</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../oci.html">← OCI の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
