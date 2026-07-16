@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AWS Network Firewall はなぜ Suricata を採用したのか | maijun の技術質問ノート</title>
+  <meta name="description" content="AWS は採用理由を公式文書で説明していませんが、Network Firewall のステートフル検査が Suricata 互換であることは公式に明記されており、設計当初からのマルチスレッドアーキテクチャ、Snort 互換ルールの成熟したエコシステム、開発当時 Snort 3 が未リリースだったことが背景として推測できます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="AWS Network Firewall はなぜ Suricata を採用したのか">
+  <meta property="og:description" content="AWS は採用理由を公式文書で説明していませんが、Network Firewall のステートフル検査が Suricata 互換であることは公式に明記されており、設計当初からのマルチスレッドアーキテクチャ、Snort 互換ルールの成熟したエコシステム、開発当時 Snort 3 が未リリースだったことが背景として推測できます。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/network-firewall-why-suricata">
+  <meta property="og:url" content="https://notes.maijun.net/aws/network-firewall-why-suricata">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=AWS%20Network%20Firewall%20%E3%81%AF%E3%81%AA%E3%81%9C%20Suricata%20%E3%82%92%E6%8E%A1%E7%94%A8%E3%81%97%E3%81%9F%E3%81%AE%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-07-16">2026-07-16</time>
+      </p>
+      <h1>AWS Network Firewall はなぜ Suricata を採用したのか</h1>
+
+      <div class="lead">
+        <p>AWS Network Firewall のステートフル検査エンジンが OSS の IPS「Suricata」互換であることは、AWS 公式ドキュメントとプレスリリースに明記されています。ただし「なぜ Snort ではなく Suricata なのか」を AWS が公式に説明した文書は公開されておらず、その意味で採用理由そのものは未確認です。公開されている一次情報から確度高く推測できる背景は、(1) 設計当初からのマルチスレッドアーキテクチャがマネージドなスケールアウト型サービスと相性が良いこと、(2) Snort 互換のルール言語を持ちルール資産をそのまま活かせること、(3) Network Firewall GA(2020 年 11 月)の時点でマルチスレッド対応の Snort 3 がまだ GA していなかったこと、の 3 点です。</p>
+      </div>
+
+      <h2>まず事実関係 — 公式情報で確認できること</h2>
+      <p>一次情報で確認できるのは次の事実です。</p>
+      <ul>
+        <li>AWS Network Firewall は 2020 年 11 月 17 日に GA しました。Amazon の公式プレスリリースは「Network Firewall はステートフル検査にオープンソースの IPS である Suricata を使用する」と明言しています</li>
+        <li>AWS 公式ドキュメントは、ステートフルルールグループを「Suricata compatible(Suricata 互換)」と一貫して表現しており、ルールは Suricata のルール記法の文字列としてそのまま投入できます</li>
+        <li>ドメインリストルールや 5-tuple ルールといった簡易指定も、内部的には Suricata 互換ルールへ変換されて評価されます</li>
+      </ul>
+      <p>つまり「Suricata ベース(互換)である」ことは公式事実ですが、「なぜ Suricata を選んだか」の理由説明は AWS から公開されていません。以下の各節は、公開情報にもとづく合理的な推測として読んでください。</p>
+
+      <h2>推測 1: マルチスレッド前提の設計がクラウド規模の検査に向く</h2>
+      <p>Suricata は 2007 年に OISF(Open Information Security Foundation)が「Snort の代替」を目標に開発を始めたエンジンで、最初からマルチスレッドを前提に設計されています(初の安定版 1.0 は 2010 年)。一方、長らく主流だった Snort 2 系はシングルスレッド設計で、マルチコアを活かすにはプロセスを複数並べる運用上の工夫が必要でした。</p>
+      <p>Network Firewall はトラフィック量に応じて自動でスケールするマネージドサービスです。1 インスタンスあたりのスループットを CPU コア数で伸ばせるマルチスレッド型のエンジンは、こうした「性能を横にも縦にも伸ばす」サービス設計と相性が良いと考えられます。AWS 自身も Open Source Blog「Scaling threat prevention on AWS with Suricata」で、EC2 上で Suricata を使った脅威防御をスケールさせる構成を紹介しており、Network Firewall 登場以前から AWS 上での Suricata 活用に取り組んでいたことがうかがえます。</p>
+
+      <svg viewBox="0 0 720 250" role="img" aria-label="Snort 2 のシングルスレッド処理と Suricata のマルチスレッド処理の比較図" style="max-width:100%; height:auto;">
+        <defs>
+          <marker id="arrow2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#555"/>
+          </marker>
+        </defs>
+        <text x="180" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Snort 2(シングルスレッド)</text>
+        <rect x="30" y="45" width="90" height="46" rx="8" fill="#eef3ee" stroke="#5a8a5a"/>
+        <text x="75" y="72" text-anchor="middle" font-size="12" fill="#333">パケット</text>
+        <rect x="180" y="45" width="150" height="46" rx="8" fill="#f6e7d7" stroke="#c77b3f"/>
+        <text x="255" y="66" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">検査スレッド ×1</text>
+        <text x="255" y="83" text-anchor="middle" font-size="10" fill="#555">1 コアぶんで処理</text>
+        <line x1="120" y1="68" x2="172" y2="68" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+        <text x="180" y="130" text-anchor="middle" font-size="11" fill="#555">マルチコア活用は複数プロセス並走などの工夫が必要</text>
+
+        <text x="540" y="28" text-anchor="middle" font-size="14" font-weight="bold" fill="#333">Suricata(マルチスレッド)</text>
+        <rect x="400" y="80" width="90" height="46" rx="8" fill="#eef3ee" stroke="#5a8a5a"/>
+        <text x="445" y="107" text-anchor="middle" font-size="12" fill="#333">パケット</text>
+        <rect x="550" y="45" width="150" height="38" rx="8" fill="#e3edf7" stroke="#4a7fb5"/>
+        <text x="625" y="69" text-anchor="middle" font-size="12" fill="#333">検査スレッド 1</text>
+        <rect x="550" y="93" width="150" height="38" rx="8" fill="#e3edf7" stroke="#4a7fb5"/>
+        <text x="625" y="117" text-anchor="middle" font-size="12" fill="#333">検査スレッド 2</text>
+        <rect x="550" y="141" width="150" height="38" rx="8" fill="#e3edf7" stroke="#4a7fb5"/>
+        <text x="625" y="165" text-anchor="middle" font-size="12" fill="#333">検査スレッド n</text>
+        <line x1="490" y1="95" x2="542" y2="70" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+        <line x1="490" y1="103" x2="542" y2="110" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+        <line x1="490" y1="115" x2="542" y2="155" stroke="#555" stroke-width="2" marker-end="url(#arrow2)"/>
+        <text x="550" y="205" text-anchor="middle" font-size="11" fill="#555">コア数に応じてスループットを伸ばしやすい</text>
+        <text x="360" y="240" text-anchor="middle" font-size="11" fill="#555">※ Snort も 2021 年 1 月 GA の Snort 3 でマルチスレッドに対応(概念図)</text>
+      </svg>
+
+      <h2>推測 2: 開発当時、マルチスレッドの Snort 3 はまだ存在しなかった</h2>
+      <p>タイミングの問題も見逃せません。Snort のマルチスレッド対応は Snort 3 で実現しましたが、Snort 3 の正式リリース(GA)は 2021 年 1 月 20 日で、Network Firewall の GA(2020 年 11 月 17 日)より後です。マネージドサービスの開発期間を考えると、AWS がエンジンを選定した時点で実用に足る選択肢は「シングルスレッドの Snort 2」か「マルチスレッドで実績を積んだ Suricata」であり、クラウド規模のトラフィックをさばく前提では Suricata が自然な選択だったと考えられます。</p>
+
+      <h2>推測 3: Snort 互換のルール言語と成熟したエコシステム</h2>
+      <p>Suricata はもともと「Snort と同じ検知ルール言語を共有する」ことを掲げて開発されており、Snort 向けに蓄積された膨大なルール資産(Emerging Threats など)を大きな書き換えなしに利用できます。実際、Amazon のプレスリリースも「顧客はカスタマイズした Snort および Suricata のルール(広く使われている 2 つのオープンソース形式)を実装できる」と両方の名前を挙げています。</p>
+      <p>つまり Suricata を採用すれば、エンジンとしてはマルチスレッドの性能を得つつ、ルールのエコシステムでは Snort 資産との互換性も確保できる、いわば「両取り」ができます。利用者側から見ても、既存の IDS/IPS 運用で書き慣れたルールをそのまま持ち込めることは、マネージドファイアウォールの採用障壁を下げる大きな要素です。</p>
+      <pre><code># Network Firewall にそのまま投入できる Suricata 互換ルールの例
+drop tls $HOME_NET any -&gt; $EXTERNAL_NET any \
+  (tls.sni; content:"evil.example.com"; startswith; nocase; endswith; \
+   msg:"Blocked TLS SNI to evil.example.com"; sid:1000001; rev:1;)</code></pre>
+
+      <h2>他の候補との比較で整理すると</h2>
+      <ul>
+        <li><strong>Snort 2</strong>: ルール資産は豊富だがシングルスレッド。スケールを求めるマネージドサービスの中核には不利</li>
+        <li><strong>Snort 3</strong>: マルチスレッド対応だが、Network Firewall 開発時点で未リリース(GA は 2021 年 1 月)</li>
+        <li><strong>Zeek(旧 Bro)</strong>: シグネチャ型 IPS ではなくネットワーク解析・モニタリング(NSM)基盤であり、そもそも用途が異なる</li>
+        <li><strong>Suricata</strong>: マルチスレッド設計・Snort 互換ルール・GPLv2 の OSS として 10 年の実績(2020 年時点)があり、非営利団体 OISF が開発を主導</li>
+      </ul>
+
+      <h2>注意: 「Suricata そのもの」ではなく「Suricata 互換」</h2>
+      <p>AWS 公式ドキュメントの表現は一貫して「Suricata compatible」です。Network Firewall はマネージドサービスとして Suricata のルール記法と検査動作を提供しますが、素の Suricata と完全に同一ではなく、利用できるキーワードや動作に制限・注意点があります(例: 一部ルールオプションの非対応など)。詳細は公式の「Limitations and caveats」を確認してください。また、本記事の「なぜ採用されたか」の 3 つの理由づけは、冒頭に書いたとおり AWS の公式説明ではなく公開情報からの推測である点に留意してください。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/network-firewall/latest/developerguide/stateful-rule-groups-ips.html" rel="noopener">Working with stateful rule groups in AWS Network Firewall - AWS 公式ドキュメント</a></li>
+          <li><a href="https://docs.aws.amazon.com/network-firewall/latest/developerguide/suricata-limitations-caveats.html" rel="noopener">Limitations and caveats for stateful rules in AWS Network Firewall - AWS 公式ドキュメント</a></li>
+          <li><a href="https://press.aboutamazon.com/2020/11/aws-announces-general-availability-of-aws-network-firewall" rel="noopener">AWS Announces General Availability of AWS Network Firewall - Amazon プレスリリース(2020-11-17)</a></li>
+          <li><a href="https://aws.amazon.com/blogs/opensource/scaling-threat-prevention-on-aws-with-suricata/" rel="noopener">Scaling threat prevention on AWS with Suricata - AWS Open Source Blog</a></li>
+          <li><a href="https://suricata.io/features/" rel="noopener">Features - Suricata(OISF)公式サイト</a></li>
+          <li><a href="https://blog.snort.org/2021/01/snort-3-officially-released.html" rel="noopener">Snort 3 officially released - Snort 公式ブログ(2021-01-20)</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
