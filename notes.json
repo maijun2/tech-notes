@@ -1,5 +1,13 @@
 [
   {
+    "title": "AWS Network Firewall はなぜ Suricata を採用したのか",
+    "category": "aws",
+    "path": "aws/network-firewall-why-suricata.html",
+    "date": "2026-07-16",
+    "summary": "AWS Network Firewall のステートフル検査エンジンが OSS の IPS「Suricata」互換であることは、AWS 公式ドキュメントとプレスリリースに明記されています。",
+    "tags": ["Network Firewall", "Suricata", "Snort", "IPS", "IDS", "OISF", "ステートフル検査", "マルチスレッド"]
+  },
+  {
     "title": "OCI のサービス制限とコンパートメントクォータの違い",
     "category": "oci",
     "path": "oci/service-limits-vs-compartment-quotas.html",
