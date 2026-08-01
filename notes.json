@@ -1,5 +1,13 @@
 [
   {
+    "title": "Autonomous AI Database の A2A 連携と対応エージェント",
+    "category": "oci",
+    "path": "oci/autonomous-database-a2a-server.html",
+    "date": "2026-08-01",
+    "summary": "Autonomous AI Database にマネージドの Agent2Agent (A2A) サーバーが組み込まれ、Select AI Agent フレームワークで作ったエージェントチームを A2A プロトコルで外部エージェントに公開できます。",
+    "tags": ["A2A", "Agent2Agent", "Select AI Agent", "DBMS_CLOUD_AI_AGENT", "MCP", "Gemini Enterprise", "Azure AI Foundry", "Copilot Studio", "マルチエージェント"]
+  },
+  {
     "title": "AWS Network Firewall はなぜ Suricata を採用したのか",
     "category": "aws",
     "path": "aws/network-firewall-why-suricata.html",
