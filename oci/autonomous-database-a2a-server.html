@@ -105,6 +105,17 @@
 
       <h2>有効化の手順</h2>
 
+      <p>公式ドキュメントは「A2A でのデータベース内 AI エージェントの使用」の下に、次の順序でページを並べています。この並びがそのまま導入手順になります。</p>
+
+      <ol>
+        <li>A2A サーバーの有効化</li>
+        <li>Select AI Agent Teams の作成</li>
+        <li>OAuth クライアントの登録</li>
+        <li>Bearer トークンの生成</li>
+        <li>使用可能なエージェントのリスト取得 → エージェント・カードの取得</li>
+        <li>A2A クライアント・エージェントの構成 → エージェントのコール</li>
+      </ol>
+
       <h3>1. フリーフォームタグで A2A サーバーを有効化</h3>
 
       <p>OCI コンソールの Autonomous AI Database 詳細画面から「タグの管理」を開き、フリーフォームタグを追加します。タグキーは <code>adb$feature</code> で、値に有効化したい機能を JSON で指定します。タグを更新するので、操作する OCI ユーザーにはデータベースを更新する IAM 権限が必要です。</p>
@@ -124,23 +135,31 @@ adb$feature
 
       <p>公開する対象は個々のエージェントではなくエージェントチームです。Select AI Agent フレームワークでエージェント、タスク、ツールを定義し、チームにまとめます。データベースユーザーには <code>DBMS_CLOUD_AI_AGENT</code> の実行権限に加え、Select AI が要求する権限一式が必要です。</p>
 
-      <h3>3. 認証を設定してクライアントを接続する</h3>
+      <h3>3. OAuth クライアントを登録して Bearer トークンを取得する</h3>
 
-      <p>認証は組織の ID 基盤に合わせて設定します。データベース資格証明から Bearer トークンを生成する方法が基本で、トークンエンドポイントは <code>/adb/auth/v1/databases/{database-ocid}/token</code> です。取得したトークンはリクエストヘッダーに付けて送ります。トークンの有効期間はおよそ 1 時間なので、常時稼働するクライアントでは期限前の再取得を実装しておきます。</p>
+      <p>A2A サーバーにアクセスするための資格証明は、OAuth クライアントを登録して生成します。これが A2A クライアント統合のセキュアな認証の土台になります。クライアント側でいきなりトークンを取りにいくのではなく、先に登録が要る点に注意してください。</p>
+
+      <p>続いてデータベース資格証明から Bearer トークンを生成し、API リクエストの認証に使います。トークンエンドポイントは <code>/adb/auth/v1/databases/{database-ocid}/token</code> です。取得したトークンはリクエストヘッダーに付けて送ります。トークンの有効期間はおよそ 1 時間なので、常時稼働するクライアントでは期限前の再取得を実装しておきます。</p>
 
       <pre><code>Authorization: Bearer &lt;token&gt;</code></pre>
 
-      <p>より本格的な構成では、Oracle Database Identity、OCI IAM、外部の OIDC / OAuth 2.1 との連携を使い、認証と認可を全社の ID 基盤に寄せられます。Gemini Enterprise 向けの Oracle AI Database Agent は OAuth 2.0 のパスワードグラントを使い、データベースのユーザー名とパスワードからトークンを取得する実装になっています。クライアント側は OAuth クライアントの事前登録が必要で、Bearer トークンを取得してから Agent Card の取得とメッセージ送信に進みます。</p>
+      <p>より本格的な構成では、Oracle Database Identity、OCI IAM、外部の OIDC / OAuth 2.1 との連携を使い、認証と認可を全社の ID 基盤に寄せられます。Gemini Enterprise 向けの Oracle AI Database Agent は OAuth 2.0 のパスワードグラントを使い、データベースのユーザー名とパスワードからトークンを取得する実装になっています。</p>
 
-      <h3>4. Agent Card の URL を確認する</h3>
+      <h3>4. エージェントを一覧して Agent Card を取得する</h3>
 
-      <p>A2A サーバーを有効にすると、エージェントチームごとの Agent Card が自動生成されます。クライアントはこの URL を起点に、チーム名・各エージェントの役割・エンドポイントを読み取ります。実機で確認された URL の形は次のとおりです。</p>
+      <p>トークンが手に入ったら、まず使用可能なエージェントを一覧します。ここで返るのは、<strong>特定のデータベースユーザーの A2A エージェントとして公開されている</strong> Select AI エージェントチームのリストで、各エントリにエージェント・カードの URL と説明が含まれます。公開範囲がデータベースユーザー単位で決まる、というのがこの API の要点です。誰のトークンで叩くかによって見えるエージェントが変わります。</p>
+
+      <p>一覧で得た URL から Agent Card を取得すると、チーム名・各エージェントの役割・エンドポイントを読み取れます。実機で確認された URL の形は次のとおりです。</p>
 
       <pre><code># &lt;region&gt; はリージョン識別子、&lt;database-ocid&gt; は対象 DB の OCID、
 # 末尾はエージェントチーム名（例: WINE_ANALYSIS_TEAM）
 https://dataaccess.adb.&lt;region&gt;.oraclecloudapps.com/adb/a2a/v1/databases/&lt;database-ocid&gt;/agents/&lt;AGENT_TEAM_NAME&gt;/.well-known/agent-card.json</code></pre>
 
       <p>ホスト名と <code>/adb/&lt;サービス&gt;/v1/databases/&lt;database-ocid&gt;/</code> という並びは、前述の Bearer トークン取得エンドポイントと同じ構造です。ひとつ注意したいのは Agent Card のファイル名で、A2A の仕様書で古くから紹介されてきた <code>agent.json</code> ではなく <code>agent-card.json</code> を使います。クライアント側のライブラリが <code>agent.json</code> を決め打ちしていると取得に失敗するので、接続先に合わせてパスを確認してください。</p>
+
+      <h3>5. クライアントを構成してエージェントを呼び出す</h3>
+
+      <p>最後に、Google Gemini エンタープライズ・アプリケーションなどの A2A 互換クライアント・エージェントを構成します。エージェント・カードとクライアント資格証明を渡して A2A サーバーと対話させ、公開済みの Select AI エージェントチームとの会話を開始します。</p>
 
       <h2>セキュリティとガバナンス</h2>
 
@@ -150,22 +169,35 @@ https://dataaccess.adb.&lt;region&gt;.oraclecloudapps.com/adb/a2a/v1/databases/&
 
       <h2>未確認の点</h2>
 
-      <p>執筆時点で公式ドキュメントの原文を直接確認できず、裏取りが取れていない項目があります。導入前に一次情報で確認してください。</p>
+      <p>手順の全体像と各ステップの存在は公式ドキュメントの目次ページ（更新日 2026-07-08）で確認しました。一方、個々の子ページの本文までは確認できておらず、次の点は裏取りが残っています。導入前に一次情報で確認してください。</p>
 
       <ul>
         <li>前掲の Agent Card の URL 形式は、実機で動かした<strong>検証記事（二次情報）に基づく</strong>もので、公式ドキュメントの記述としては未確認です。Bearer トークン取得エンドポイントと構造が一致するため確度は高いとみていますが、リージョンやデプロイ形態による差異は確認できていません。</li>
-        <li>Autonomous AI Database 自身が A2A クライアントとして外部エージェントを呼び出せるかは<strong>未確認</strong>です。ドキュメントには「A2A Client (Client Agent)」の説明ページが存在しますが、これが役割の定義なのか、データベース側からの発信機能を指すのかまでは確認できていません。</li>
+        <li>フリーフォームタグの<strong>値の正確な書式</strong>は未確認です。タグを追加して有効化するという方式自体は公式ドキュメントに明記されていますが、<code>{"name":"a2a_server","enable":true}</code> という値そのものは MCP サーバー側の記述からの類推を含みます。</li>
+        <li>Autonomous AI Database 自身が A2A クライアントとして外部エージェントを呼び出せるかは<strong>未確認</strong>です。A2A 関連のドキュメントはいずれもデータベースをサーバーとして公開し、外部クライアントから呼ぶ構成で書かれており、データベース側から外部エージェントを呼ぶ機能への言及は見当たりません。</li>
         <li>対応リージョン、ワークロードタイプごとの可否、課金の扱いは<strong>未確認</strong>です。</li>
       </ul>
+
+      <p>なお日本語版のドキュメントには機械翻訳である旨の注記があります。用語が不自然な箇所は英語版と併読するのが安全です。</p>
 
       <section class="refs">
         <h2>参照(一次情報)</h2>
         <ul>
           <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/expose-database-ai-agents-agent2agent-protocol.html" rel="noopener">Agent2Agent プロトコルによるデータベース内 AI エージェントの公開 — Oracle Docs</a></li>
-          <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/a2a-client-client-agent.html" rel="noopener">A2A Client (Client Agent) — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/use-database-ai-agents-a2a.html" rel="noopener">A2A でのデータベース内 AI エージェントの使用（手順の目次）— Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/agent2agent-protocol.html" rel="noopener">Agent2Agent プロトコルについて — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/prerequisites-a2a.html" rel="noopener">前提条件（A2A）— Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/getting-started-a2a-server.html" rel="noopener">A2A サーバーのスタート・ガイド — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/enable-a2a-server.html" rel="noopener">A2A サーバーの有効化 — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/create-select-ai-agent-teams.html" rel="noopener">Select AI Agent Teams の作成 — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/register-oauth-client-oauth.html" rel="noopener">OAuth クライアントの登録 — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/generate-bearer-token.html" rel="noopener">Bearer トークンの生成 — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/configure-oracle-database-agents-a2a-client-agent.html" rel="noopener">A2A クライアント・エージェントでの Oracle In-Database エージェントの構成 — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/oracle-ai-database-agent-a2a-clients.html" rel="noopener">A2A クライアントを使用した Oracle AI Database Agent — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/security-a2a.html" rel="noopener">セキュリティ（A2A）— Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/a2a-concepts.html" rel="noopener">A2A の概念 — Oracle Docs</a></li>
           <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/about-select-ai-agents.html" rel="noopener">About Select AI Agent — Oracle Docs</a></li>
           <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/use-mcp-server.html" rel="noopener">Use MCP Server（フリーフォームタグ adb$feature による有効化）— Oracle Docs</a></li>
-          <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/generate-bearer-token.html" rel="noopener">Generate Bearer Token — Oracle Docs</a></li>
           <li><a href="https://docs.oracle.com/en/cloud/paas/autonomous-database/dedicated/adbaa/dbmscloudaiagent-package.html" rel="noopener">DBMS_CLOUD_AI_AGENT Package — Oracle Docs</a></li>
           <li><a href="https://docs.oracle.com/en-us/iaas/releasenotes/services/autonomous-database-serverless/index.htm" rel="noopener">Autonomous Database Serverless リリースノート — Oracle Docs</a></li>
           <li><a href="https://blogs.oracle.com/machinelearning/introducing-oracle-autonomous-ai-database-a2a-server-for-governed-multi-agent-systems" rel="noopener">Introducing Oracle Autonomous AI Database A2A Server for Governed Multi-Agent Systems — Oracle Blog</a></li>
