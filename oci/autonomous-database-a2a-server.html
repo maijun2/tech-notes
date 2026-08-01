@@ -130,7 +130,17 @@ adb$feature
 
       <pre><code>Authorization: Bearer &lt;token&gt;</code></pre>
 
-      <p>より本格的な構成では、Oracle Database Identity、OCI IAM、外部の OIDC / OAuth 2.1 との連携を使い、認証と認可を全社の ID 基盤に寄せられます。Gemini Enterprise 向けの Oracle AI Database Agent は OAuth 2.0 のパスワードグラントを使い、データベースのユーザー名とパスワードからトークンを取得する実装になっています。</p>
+      <p>より本格的な構成では、Oracle Database Identity、OCI IAM、外部の OIDC / OAuth 2.1 との連携を使い、認証と認可を全社の ID 基盤に寄せられます。Gemini Enterprise 向けの Oracle AI Database Agent は OAuth 2.0 のパスワードグラントを使い、データベースのユーザー名とパスワードからトークンを取得する実装になっています。クライアント側は OAuth クライアントの事前登録が必要で、Bearer トークンを取得してから Agent Card の取得とメッセージ送信に進みます。</p>
+
+      <h3>4. Agent Card の URL を確認する</h3>
+
+      <p>A2A サーバーを有効にすると、エージェントチームごとの Agent Card が自動生成されます。クライアントはこの URL を起点に、チーム名・各エージェントの役割・エンドポイントを読み取ります。実機で確認された URL の形は次のとおりです。</p>
+
+      <pre><code># &lt;region&gt; はリージョン識別子、&lt;database-ocid&gt; は対象 DB の OCID、
+# 末尾はエージェントチーム名（例: WINE_ANALYSIS_TEAM）
+https://dataaccess.adb.&lt;region&gt;.oraclecloudapps.com/adb/a2a/v1/databases/&lt;database-ocid&gt;/agents/&lt;AGENT_TEAM_NAME&gt;/.well-known/agent-card.json</code></pre>
+
+      <p>ホスト名と <code>/adb/&lt;サービス&gt;/v1/databases/&lt;database-ocid&gt;/</code> という並びは、前述の Bearer トークン取得エンドポイントと同じ構造です。ひとつ注意したいのは Agent Card のファイル名で、A2A の仕様書で古くから紹介されてきた <code>agent.json</code> ではなく <code>agent-card.json</code> を使います。クライアント側のライブラリが <code>agent.json</code> を決め打ちしていると取得に失敗するので、接続先に合わせてパスを確認してください。</p>
 
       <h2>セキュリティとガバナンス</h2>
 
@@ -143,7 +153,7 @@ adb$feature
       <p>執筆時点で公式ドキュメントの原文を直接確認できず、裏取りが取れていない項目があります。導入前に一次情報で確認してください。</p>
 
       <ul>
-        <li>A2A サーバーのエンドポイント URL とエージェント一覧・Agent Card の正確なパス形式は<strong>未確認</strong>です。A2A 標準では <code>/.well-known/agent-card.json</code> に Agent Card を置く慣行ですが、Autonomous AI Database での実際のパスは確認できていません。</li>
+        <li>前掲の Agent Card の URL 形式は、実機で動かした<strong>検証記事（二次情報）に基づく</strong>もので、公式ドキュメントの記述としては未確認です。Bearer トークン取得エンドポイントと構造が一致するため確度は高いとみていますが、リージョンやデプロイ形態による差異は確認できていません。</li>
         <li>Autonomous AI Database 自身が A2A クライアントとして外部エージェントを呼び出せるかは<strong>未確認</strong>です。ドキュメントには「A2A Client (Client Agent)」の説明ページが存在しますが、これが役割の定義なのか、データベース側からの発信機能を指すのかまでは確認できていません。</li>
         <li>対応リージョン、ワークロードタイプごとの可否、課金の扱いは<strong>未確認</strong>です。</li>
       </ul>
@@ -161,6 +171,11 @@ adb$feature
           <li><a href="https://blogs.oracle.com/machinelearning/introducing-oracle-autonomous-ai-database-a2a-server-for-governed-multi-agent-systems" rel="noopener">Introducing Oracle Autonomous AI Database A2A Server for Governed Multi-Agent Systems — Oracle Blog</a></li>
           <li><a href="https://blogs.oracle.com/developers/unlocking-data-insights-with-the-oracle-ai-database-agent-in-gemini-enterprise-part-1" rel="noopener">Unlocking Data Insights with the Oracle AI Database Agent in Gemini Enterprise Part 1 — Oracle Blog</a></li>
           <li><a href="https://a2a-protocol.org/latest/specification/" rel="noopener">Agent2Agent (A2A) Protocol Specification</a></li>
+        </ul>
+
+        <h2>参考(二次情報)</h2>
+        <ul>
+          <li><a href="https://qiita.com/ksonoda/items/d2f2263cf9dc5d2ddd67" rel="noopener">Google A2A をサポートした OCI Autonomous Database でマルチエージェントを実装してみる — Qiita</a>（Agent Card の URL 形式と OAuth クライアント登録まわりは、この検証記事を参照しました）</li>
         </ul>
       </section>
 
