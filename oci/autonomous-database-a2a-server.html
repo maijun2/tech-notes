@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomous AI Database の A2A 連携と対応エージェント | maijun の技術質問ノート</title>
+  <meta name="description" content="Autonomous AI Database にマネージドの A2A サーバーが組み込まれ、Select AI Agent で作ったエージェントチームを Gemini Enterprise や Azure AI Foundry などの外部エージェントから直接呼び出せます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Autonomous AI Database の A2A 連携と対応エージェント">
+  <meta property="og:description" content="Autonomous AI Database にマネージドの A2A サーバーが組み込まれ、Select AI Agent で作ったエージェントチームを Gemini Enterprise や Azure AI Foundry などの外部エージェントから直接呼び出せます。">
+  <link rel="canonical" href="https://notes.maijun.net/oci/autonomous-database-a2a-server">
+  <meta property="og:url" content="https://notes.maijun.net/oci/autonomous-database-a2a-server">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Autonomous%20AI%20Database%20%E3%81%AE%20A2A%20%E9%80%A3%E6%90%BA%E3%81%A8%E5%AF%BE%E5%BF%9C%E3%82%A8%E3%83%BC%E3%82%B8%E3%82%A7%E3%83%B3%E3%83%88">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-oci)">OCI</span>
+        <time data-pagefind-meta="date" datetime="2026-08-01">2026-08-01</time>
+      </p>
+      <h1>Autonomous AI Database の A2A 連携と対応エージェント</h1>
+
+      <div class="lead">
+        <p>Autonomous AI Database に、マネージドの <strong>Agent2Agent (A2A) サーバー</strong>が組み込まれました。Select AI Agent フレームワークで作ったエージェントチームを A2A プロトコルで公開でき、外部の A2A 対応エージェントが標準の HTTPS 経由でそれを発見し、呼び出せます。A2A サーバー用のインフラを別途立てる必要はありません。</p>
+        <p>Oracle が公式に例示している接続先は <strong>Google Gemini Enterprise</strong>、<strong>Azure AI Foundry</strong>、<strong>Microsoft Copilot Studio</strong>、および A2A に対応した独自アプリケーションです。対応するデータベースバージョンは 19c と 26ai、デプロイ形態は Serverless と Dedicated Region で、ADB@Azure / ADB@GCP / ADB@AWS でも使えます。</p>
+      </div>
+
+      <h2>何が新しいのか</h2>
+
+      <p>Autonomous AI Database には以前から Select AI Agent という「データベース内で動く AI エージェント」の仕組みがあります。<code>DBMS_CLOUD_AI_AGENT</code> パッケージでエージェント、タスク、ツール、そしてそれらを束ねたチーム (agent team) を定義し、ReAct パターンで推論とツール呼び出しを回すものです。エージェントのロジックもデータアクセスもデータベースの中で完結するのが特徴でした。</p>
+
+      <p>これまでは、その中のエージェントを外部のアプリケーションから使うたびに、個別の連携コードを書く必要がありました。今回追加された A2A サーバーは、そこを標準プロトコルに置き換えます。Oracle 側がサーバーの可用性・ライフサイクル・運用を管理するフルマネージドかつマルチテナントの機能としてデータベースに埋め込まれているので、利用者はサーバーを構築も運用もしません。</p>
+
+      <p>A2A は Google が公開したエージェント間通信のオープン標準です。異なるフレームワークで作られたエージェント同士が、エージェントの自己紹介にあたる <strong>Agent Card</strong> を通じて互いの能力を知り、JSON-RPC over HTTPS で会話します。Autonomous AI Database はこの標準の「サーバー側」を担うことになった、と理解すると分かりやすいです。</p>
+
+      <h2>全体像</h2>
+
+      <p>外部クライアントから見ると、流れは A2A の標準的なパターンそのものです。利用可能なエージェントを一覧し、Agent Card を取得し、承認されたエージェントを呼び出します。呼び出しの先ではデータベース内の Select AI Agent が動き、データはデータベースの外に出ません。</p>
+
+      <svg viewBox="0 0 760 400" role="img" aria-label="Autonomous AI Database の A2A サーバー構成図" style="max-width:100%;height:auto;border:1px solid var(--border,#ddd);border-radius:8px;background:#fff">
+        <defs>
+          <marker id="a2aarr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#888"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="40" width="230" height="200" fill="#eef4ff" stroke="#57a" rx="8"/>
+        <text x="36" y="66" font-size="14" fill="#222">A2A クライアント（外部）</text>
+        <text x="36" y="96" font-size="12" fill="#555">Google Gemini Enterprise</text>
+        <text x="36" y="118" font-size="12" fill="#555">Azure AI Foundry</text>
+        <text x="36" y="140" font-size="12" fill="#555">Microsoft Copilot Studio</text>
+        <text x="36" y="162" font-size="12" fill="#555">A2A 対応の独自アプリ</text>
+        <text x="36" y="200" font-size="11" fill="#888">1. エージェント一覧</text>
+        <text x="36" y="218" font-size="11" fill="#888">2. Agent Card 取得 → 3. 呼び出し</text>
+
+        <line x1="250" y1="140" x2="330" y2="140" stroke="#888" stroke-width="1.5" marker-end="url(#a2aarr)"/>
+        <text x="252" y="130" font-size="11" fill="#888">A2A over HTTPS</text>
+        <text x="252" y="162" font-size="11" fill="#888">Bearer トークン</text>
+
+        <rect x="330" y="20" width="410" height="360" fill="none" stroke="#c33" stroke-dasharray="6 4" rx="10"/>
+        <text x="344" y="42" font-size="13" fill="#c33">Autonomous AI Database（Serverless / Dedicated Region）</text>
+
+        <rect x="350" y="60" width="370" height="70" fill="#eafaf0" stroke="#3b6" rx="8"/>
+        <text x="366" y="86" font-size="14" fill="#222">マネージド A2A サーバー</text>
+        <text x="366" y="108" font-size="12" fill="#555">Oracle が運用。フリーフォームタグで有効化</text>
+
+        <rect x="350" y="150" width="370" height="80" fill="#fff6e6" stroke="#e89" rx="8"/>
+        <text x="366" y="176" font-size="14" fill="#222">Select AI Agent / エージェントチーム</text>
+        <text x="366" y="198" font-size="12" fill="#555">DBMS_CLOUD_AI_AGENT で定義</text>
+        <text x="366" y="216" font-size="12" fill="#555">ReAct・ツール呼び出し・メモリ</text>
+
+        <rect x="350" y="250" width="370" height="110" fill="#f3f0fa" stroke="#96b" rx="8"/>
+        <text x="366" y="276" font-size="14" fill="#222">データとガバナンス</text>
+        <text x="366" y="298" font-size="12" fill="#555">業務データ / ベクトル検索</text>
+        <text x="366" y="318" font-size="12" fill="#555">ACL・権限・VPD ポリシー</text>
+        <text x="366" y="338" font-size="12" fill="#555">監査ログ・レート制限</text>
+
+        <line x1="535" y1="130" x2="535" y2="150" stroke="#888" stroke-width="1.5" marker-end="url(#a2aarr)"/>
+        <line x1="535" y1="230" x2="535" y2="250" stroke="#888" stroke-width="1.5" marker-end="url(#a2aarr)"/>
+      </svg>
+
+      <h2>対応しているエージェント</h2>
+
+      <p>Oracle のドキュメントが接続先の例として挙げているのは次の 3 製品と、独自実装です。いずれも「A2A プロトコルに対応したクライアント」であることが条件なので、この 3 つだけに限定されるわけではありません。逆に言えば、A2A に対応していないツールは対象外です。</p>
+
+      <ul>
+        <li><strong>Google Gemini Enterprise</strong>: Oracle AI Database Agent という形で提供され、Google Cloud Marketplace から入手してから Gemini Enterprise 側で構成します。Agent Development Kit (ADK) を使えば、分析・可視化・文書生成といった役割の異なるエージェントを組み合わせたワークフローにも組み込めます。</li>
+        <li><strong>Azure AI Foundry</strong>: Microsoft のエージェント開発基盤から、A2A 経由でデータベース内エージェントを呼び出します。</li>
+        <li><strong>Microsoft Copilot Studio</strong>: 業務ユーザー向けの Copilot に、データベース内エージェントを一つの相手先エージェントとして組み込めます。</li>
+      </ul>
+
+      <p>ここで重要なのは、接続先が増えてもデータベース側の作り込みは変わらない点です。エージェントチームを一度 A2A で公開してしまえば、あとはクライアントごとの個別連携ではなく、共通のプロトコルで発見と呼び出しが行われます。</p>
+
+      <h2>有効化の手順</h2>
+
+      <h3>1. フリーフォームタグで A2A サーバーを有効化</h3>
+
+      <p>OCI コンソールの Autonomous AI Database 詳細画面から「タグの管理」を開き、フリーフォームタグを追加します。タグキーは <code>adb$feature</code> で、値に有効化したい機能を JSON で指定します。タグを更新するので、操作する OCI ユーザーにはデータベースを更新する IAM 権限が必要です。</p>
+
+      <pre><code># タグキー
+adb$feature
+
+# タグ値（A2A サーバーを有効化）
+{"name":"a2a_server","enable":true}</code></pre>
+
+      <p>MCP サーバーと A2A サーバーは独立して有効化します。片方を有効にしても、もう片方には影響しません。注意点として、1 つのタグに複数の name/value を配列でまとめて指定することはできません。両方使いたい場合はタグを分けて追加します。</p>
+
+      <pre><code># MCP サーバーを併用する場合は、別のタグとして追加する
+{"name":"mcp_server","enable":true}</code></pre>
+
+      <h3>2. エージェントチームを用意する</h3>
+
+      <p>公開する対象は個々のエージェントではなくエージェントチームです。Select AI Agent フレームワークでエージェント、タスク、ツールを定義し、チームにまとめます。データベースユーザーには <code>DBMS_CLOUD_AI_AGENT</code> の実行権限に加え、Select AI が要求する権限一式が必要です。</p>
+
+      <h3>3. 認証を設定してクライアントを接続する</h3>
+
+      <p>認証は組織の ID 基盤に合わせて設定します。データベース資格証明から Bearer トークンを生成する方法が基本で、トークンエンドポイントは <code>/adb/auth/v1/databases/{database-ocid}/token</code> です。取得したトークンはリクエストヘッダーに付けて送ります。トークンの有効期間はおよそ 1 時間なので、常時稼働するクライアントでは期限前の再取得を実装しておきます。</p>
+
+      <pre><code>Authorization: Bearer &lt;token&gt;</code></pre>
+
+      <p>より本格的な構成では、Oracle Database Identity、OCI IAM、外部の OIDC / OAuth 2.1 との連携を使い、認証と認可を全社の ID 基盤に寄せられます。Gemini Enterprise 向けの Oracle AI Database Agent は OAuth 2.0 のパスワードグラントを使い、データベースのユーザー名とパスワードからトークンを取得する実装になっています。</p>
+
+      <h2>セキュリティとガバナンス</h2>
+
+      <p>A2A サーバーがデータベースに統合されていることの実利は、既存の統制がそのまま効く点にあります。アクセス制御リスト、ユーザー権限、Virtual Private Database (VPD) ポリシーによる行レベルの制御、監査ログ、レート制限が、外部エージェントからの呼び出しにも適用されます。エージェントが参照できるデータの範囲は、そのエージェントが動くデータベースユーザーの権限で決まります。</p>
+
+      <p>エージェントのロジックとデータアクセスをデータベース側に置いたまま、外部にはプロトコルの口だけを開ける構成なので、業務データを外部のエージェント基盤へコピーせずにマルチエージェント構成へ参加できます。ADB@Azure / ADB@GCP / ADB@AWS といったマルチクラウド環境でも同じ統制を維持できる、というのが Oracle の主張です。</p>
+
+      <h2>未確認の点</h2>
+
+      <p>執筆時点で公式ドキュメントの原文を直接確認できず、裏取りが取れていない項目があります。導入前に一次情報で確認してください。</p>
+
+      <ul>
+        <li>A2A サーバーのエンドポイント URL とエージェント一覧・Agent Card の正確なパス形式は<strong>未確認</strong>です。A2A 標準では <code>/.well-known/agent-card.json</code> に Agent Card を置く慣行ですが、Autonomous AI Database での実際のパスは確認できていません。</li>
+        <li>Autonomous AI Database 自身が A2A クライアントとして外部エージェントを呼び出せるかは<strong>未確認</strong>です。ドキュメントには「A2A Client (Client Agent)」の説明ページが存在しますが、これが役割の定義なのか、データベース側からの発信機能を指すのかまでは確認できていません。</li>
+        <li>対応リージョン、ワークロードタイプごとの可否、課金の扱いは<strong>未確認</strong>です。</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.oracle.com/ja-jp/iaas/autonomous-database-serverless/doc/expose-database-ai-agents-agent2agent-protocol.html" rel="noopener">Agent2Agent プロトコルによるデータベース内 AI エージェントの公開 — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/a2a-client-client-agent.html" rel="noopener">A2A Client (Client Agent) — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/about-select-ai-agents.html" rel="noopener">About Select AI Agent — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/use-mcp-server.html" rel="noopener">Use MCP Server（フリーフォームタグ adb$feature による有効化）— Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/autonomous-database-serverless/doc/generate-bearer-token.html" rel="noopener">Generate Bearer Token — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en/cloud/paas/autonomous-database/dedicated/adbaa/dbmscloudaiagent-package.html" rel="noopener">DBMS_CLOUD_AI_AGENT Package — Oracle Docs</a></li>
+          <li><a href="https://docs.oracle.com/en-us/iaas/releasenotes/services/autonomous-database-serverless/index.htm" rel="noopener">Autonomous Database Serverless リリースノート — Oracle Docs</a></li>
+          <li><a href="https://blogs.oracle.com/machinelearning/introducing-oracle-autonomous-ai-database-a2a-server-for-governed-multi-agent-systems" rel="noopener">Introducing Oracle Autonomous AI Database A2A Server for Governed Multi-Agent Systems — Oracle Blog</a></li>
+          <li><a href="https://blogs.oracle.com/developers/unlocking-data-insights-with-the-oracle-ai-database-agent-in-gemini-enterprise-part-1" rel="noopener">Unlocking Data Insights with the Oracle AI Database Agent in Gemini Enterprise Part 1 — Oracle Blog</a></li>
+          <li><a href="https://a2a-protocol.org/latest/specification/" rel="noopener">Agent2Agent (A2A) Protocol Specification</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../oci.html">← OCI の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
