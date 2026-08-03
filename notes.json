@@ -1,5 +1,13 @@
 [
   {
+    "title": "Claude Opus 5 on AWS の ZDR (Zero Data Retention) とは",
+    "category": "aws",
+    "path": "aws/zero-data-retention-on-aws.html",
+    "date": "2026-08-03",
+    "summary": "ZDR は Zero Data Retention の略で、推論に使ったプロンプトと応答を、API レスポンスを返した後にサーバー側へ保存しないという取り決めです。",
+    "tags": ["ZDR", "Zero Data Retention", "Amazon Bedrock", "Claude Platform on AWS", "Claude Opus 5", "データ保持", "HIPAA", "Covered Models"]
+  },
+  {
     "title": "Autonomous AI Database の A2A 連携と対応エージェント",
     "category": "oci",
     "path": "oci/autonomous-database-a2a-server.html",

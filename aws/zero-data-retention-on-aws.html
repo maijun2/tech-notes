@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Opus 5 on AWS の ZDR (Zero Data Retention) とは | maijun の技術質問ノート</title>
+  <meta name="description" content="ZDR は Zero Data Retention の略で、推論のプロンプトと応答をレスポンス返却後にサーバー側へ保存しないという取り決めです。「データを保持し続けない」という理解で合っていますが、誰が保持しないのかは Amazon Bedrock か Claude Platform on AWS かで変わります。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Claude Opus 5 on AWS の ZDR (Zero Data Retention) とは">
+  <meta property="og:description" content="ZDR は Zero Data Retention の略で、推論のプロンプトと応答をレスポンス返却後にサーバー側へ保存しないという取り決めです。「データを保持し続けない」という理解で合っていますが、誰が保持しないのかは Amazon Bedrock か Claude Platform on AWS かで変わります。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/zero-data-retention-on-aws">
+  <meta property="og:url" content="https://notes.maijun.net/aws/zero-data-retention-on-aws">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Claude%20Opus%205%20on%20AWS%20%E3%81%AE%20ZDR%20%28Zero%20Data%20Retention%29%20%E3%81%A8%E3%81%AF">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-08-03">2026-08-03</time>
+      </p>
+      <h1>Claude Opus 5 on AWS の ZDR (Zero Data Retention) とは</h1>
+
+      <div class="lead">
+        <p>ZDR は Zero Data Retention の略で、推論に使ったプロンプトと応答を、API レスポンスを返した後にサーバー側へ保存しないという取り決めです。「データを保持し続けない」という理解で合っています。ただし ZDR は「データを送らない」ことではありません。推論のためにデータは確実に送られ、処理された後に残さない、という約束です。</p>
+        <p>もうひとつ大事なのが、誰が保持しないのかが利用経路で変わる点です。Amazon Bedrock では AWS がデータ処理者で、Anthropic は推論の入出力を保持しません。Anthropic の ZDR プログラムはそもそも Bedrock には適用されず、保持の制御は Bedrock 側の機能で行います。一方 Claude Platform on AWS と第一者の Claude API では Anthropic がデータ処理者で、ZDR は組織単位の申請ベースで有効化します。</p>
+      </div>
+
+      <h2>ZDR の定義は「レスポンス後に at rest で残さない」</h2>
+      <p>Anthropic の公式ドキュメントは ZDR をこう定義しています。</p>
+      <blockquote>
+        <p>Under a ZDR arrangement, Anthropic does not store customer prompts or responses at rest after the API response is returned.</p>
+      </blockquote>
+      <p>キーワードは <code>at rest</code>(保存された状態)と <code>after the API response is returned</code>(レスポンスを返した後)の 2 つです。推論中はメモリ上でデータを扱いますし、リクエストがネットワークを流れることも当然あります。ZDR が保証するのは、そこから先にディスクへ落として持ち続けないことです。</p>
+      <p>学習利用の話とも切り分けて考えてください。Anthropic は ZDR の有無にかかわらず、保持したデータを明示的な許可なしにモデルの学習へ使わないと明記しています。ZDR は「学習に使わせない仕組み」ではなく「そもそも残さない仕組み」です。</p>
+
+      <h2>経路によってデータ処理者が違う</h2>
+      <p>質問の元記事は Claude Opus 5 が AWS で使えるようになったという発表で、Bedrock と Claude Platform on AWS の両方に触れています。この 2 つは同じ AWS 経由でも、データの扱いがまったく別物です。</p>
+
+      <svg viewBox="0 0 720 300" role="img" aria-label="Amazon Bedrock、Claude Platform on AWS、Claude API の 3 経路でデータ処理者と ZDR の扱いが異なることを示す図" style="max-width:100%; height:auto;">
+        <defs>
+          <marker id="arrowZ" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#555"/>
+          </marker>
+        </defs>
+
+        <rect x="14" y="20" width="106" height="240" rx="10" fill="#f4f4f6" stroke="#999"/>
+        <text x="67" y="130" text-anchor="middle" font-size="13" fill="#333">あなたの</text>
+        <text x="67" y="150" text-anchor="middle" font-size="13" fill="#333">アプリ</text>
+
+        <line x1="122" y1="62" x2="184" y2="62" stroke="#555" stroke-width="1.5" marker-end="url(#arrowZ)"/>
+        <line x1="122" y1="146" x2="184" y2="146" stroke="#555" stroke-width="1.5" marker-end="url(#arrowZ)"/>
+        <line x1="122" y1="230" x2="184" y2="230" stroke="#555" stroke-width="1.5" marker-end="url(#arrowZ)"/>
+
+        <rect x="188" y="30" width="516" height="66" rx="8" fill="#eef3f8" stroke="#4a7ba7"/>
+        <text x="204" y="54" font-size="13" font-weight="bold" fill="#22405c">Amazon Bedrock</text>
+        <text x="204" y="74" font-size="12" fill="#333">データ処理者は AWS。Anthropic は推論の入出力を保持しない</text>
+        <text x="204" y="90" font-size="12" fill="#333">保持の制御は Bedrock 側の設定。Anthropic の ZDR プログラムは適用されない</text>
+
+        <rect x="188" y="114" width="516" height="66" rx="8" fill="#f8f2ea" stroke="#b08040"/>
+        <text x="204" y="138" font-size="13" font-weight="bold" fill="#6b4a15">Claude Platform on AWS</text>
+        <text x="204" y="158" font-size="12" fill="#333">データ処理者は Anthropic。認証と請求のみ AWS 側</text>
+        <text x="204" y="174" font-size="12" fill="#333">第一者 API と同じポリシー。ZDR は申請ベースで有効化</text>
+
+        <rect x="188" y="198" width="516" height="66" rx="8" fill="#eef5ef" stroke="#5a8a5a"/>
+        <text x="204" y="222" font-size="13" font-weight="bold" fill="#2f5030">Claude API (api.anthropic.com)</text>
+        <text x="204" y="242" font-size="12" fill="#333">データ処理者は Anthropic</text>
+        <text x="204" y="258" font-size="12" fill="#333">ZDR は組織単位の申請ベース。HIPAA readiness も選べる</text>
+      </svg>
+
+      <table>
+        <thead>
+          <tr><th>観点</th><th>Amazon Bedrock</th><th>Claude Platform on AWS</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>推論基盤の運用</td><td>AWS</td><td>Anthropic</td></tr>
+          <tr><td>推論データの処理者</td><td>AWS</td><td>Anthropic</td></tr>
+          <tr><td>Anthropic の ZDR プログラム</td><td>適用されない</td><td>申請すれば適用される</td></tr>
+          <tr><td>HIPAA readiness</td><td>Bedrock 側の枠組みで対応</td><td>利用不可</td></tr>
+          <tr><td>データ所在</td><td>AWS のリージョン内</td><td>AWS 外へ出ることがある</td></tr>
+        </tbody>
+      </table>
+
+      <p>Anthropic のドキュメントは、Bedrock について「zero operator access」、つまり Anthropic の人員が推論基盤にアクセスできないと明記しています。移行ガイドの警告文も直球です。</p>
+      <blockquote>
+        <p>On Bedrock, AWS is the data processor and Anthropic does not retain inference inputs or outputs. Anthropic's ZDR program does not apply there.</p>
+      </blockquote>
+      <p>Bedrock から Claude Platform on AWS へ移す場合、「AWS で使っているから今までどおり」とはなりません。Claude Platform on AWS では ZDR が opt-in なので、データ保持の保証に依存する本番ワークロードを移す前に、有効化されているかを Anthropic の担当者に確認する必要があります。</p>
+
+      <p>ちなみに Bedrock 上の Claude Opus 5 のモデル ID は <code>anthropic.claude-opus-5</code> で、エンドポイントは次の形です。</p>
+      <pre><code>https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages</code></pre>
+
+      <h2>ZDR でも消えないものがある</h2>
+      <p>ここが実務で効いてくる部分です。ZDR は万能の消去装置ではありません。</p>
+      <p>まず、法令上の要請がある場合と、Anthropic の自動 trust and safety システムがフラグを立てた場合です。この場合、ZDR や HIPAA の取り決めがあっても、入出力を最大 2 年間保持することがあります。</p>
+      <p>次に、機能を動かすために最小限の技術的な痕跡を残すものがあります。ドキュメントではこれを「Yes (qualified)」と表記していて、プロンプトと応答そのものは保存しないが、限定的なデータは短時間だけ残る、という意味です。</p>
+      <ul>
+        <li>prompt caching は KV cache と暗号学的ハッシュをキャッシュの TTL のあいだメモリに保持し、期限切れ後に削除します</li>
+        <li>structured outputs と <code>strict: true</code> のツール定義は、JSON スキーマだけを最終使用から最大 24 時間キャッシュします(だから PHI をスキーマ名や <code>enum</code> 値に入れてはいけません)</li>
+        <li>cache diagnostics はハッシュとトークン数見積もりのフィンガープリントを短時間だけ保持します</li>
+      </ul>
+
+      <h2>ZDR の対象外になる機能</h2>
+      <p>そもそも状態を持つ機能は ZDR にできません。ジョブやファイルやコンテナを保存することが機能の前提だからです。</p>
+      <ul>
+        <li>Files API は明示的に削除するまでファイルを保持します</li>
+        <li>Message Batches は 29 日保持します</li>
+        <li>code execution とその上に立つ programmatic tool calling は、コンテナのデータを最大 30 日保持します</li>
+        <li>Claude Managed Agents はセッションの transcript を削除するまで保持します</li>
+      </ul>
+      <p>注意したいのは、ZDR 組織がこれらを呼んでもエラーにならない点です。HIPAA readiness では非対応機能を含むリクエストが <code>400</code> で弾かれますが、ZDR はブロックしません。使った時点で、そのデータについては ZDR の外に出る選択をしたことになり、その機能のポリシーが適用されます。</p>
+      <p>製品単位で対象外になるものもあります。Claude Console と Workbench、Claude Free / Pro / Max などの消費者向けプラン、Claude Teams と Claude Enterprise のインターフェース(例外は ZDR 有効な Enterprise 上の Claude Code)、Claude for Excel です。加えて ZDR 組織では CORS が使えないので、ブラウザから直接呼ばずにバックエンドのプロキシ経由にします。</p>
+
+      <h2>Fable 5 と Mythos 5 は ZDR で使えない</h2>
+      <p>ZDR を検討するときに引っかかりやすいのがここです。Claude Fable 5 と Claude Mythos 5 は Covered Models に指定されていて、30 日のデータ保持が必須です。したがって ZDR では利用できません。Claude API で保持設定を満たさない組織から Fable 5 を呼ぶと、次のエラーが返ります。</p>
+      <pre><code>{
+  "type": "error",
+  "error": {
+    "type": "invalid_request_error",
+    "message": "In order to access this model, your organization or workspace must have data retention enabled."
+  }
+}</code></pre>
+      <p>逃げ道はワークスペース単位の設定です。ZDR の組織でも、特定のワークスペースだけ 30 日保持を有効にすれば、そのワークスペースから Fable 5 と Mythos 5 を呼べます。他のワークスペースは zero data retention のままです。Claude Code でも同じ制約があり、ZDR 組織では <code>/model</code> の一覧から Fable 5 が消えるか無効表示になり、<code>best</code> エイリアスは Opus へ解決されます。</p>
+      <p>この 30 日保持要件は提供先を問わず適用されます。Claude API と Claude Platform on AWS では Anthropic が保持し、Amazon Bedrock と Google Cloud の Agent Platform では保持データがクラウドプロバイダ側の環境に留まります。</p>
+
+      <h2>Bedrock 側の ZDR 設定(未確認)</h2>
+      <p>ここから先は一次情報の原文を確認できていません。執筆時のネットワークポリシーで <code>aws.amazon.com</code> と <code>docs.aws.amazon.com</code> への接続がブロックされ、AWS 公式ドキュメントと発表記事の本文を取得できなかったためです。以下は検索結果に現れた要約からの記述で、公式ドキュメントで裏取りしてください。</p>
+      <ul>
+        <li>Amazon Bedrock はアカウント単位またはプロジェクト単位でデータ保持モードを設定でき、モードは <code>none</code> / <code>default</code> / <code>inherit</code> / <code>provider_data_share</code> の 4 つとされています</li>
+        <li>組織横断で強制する場合は SCP で <code>bedrock-mantle:DataRetentionMode</code> 条件キーを使い、<code>none</code> 以外への設定を Deny します</li>
+        <li>新規アカウントの既定は <code>inherit</code> なので、SCP を付けるだけでは <code>none</code> になりません。各アカウントで <code>put-account-data-retention --mode none</code> を明示的に呼ぶ必要があるとされています</li>
+        <li>Claude Opus 5 on Amazon Bedrock は既定で zero data retention である、と AWS の発表記事が述べているようです</li>
+      </ul>
+      <p>「モードは上限であって下限ではない」という説明も見かけました。zero retention に対応するモデルは、アカウント設定にかかわらず zero retention で動く、という意味です。この挙動も含め、実際の設定前に <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html" rel="noopener">Data retention - Amazon Bedrock</a> を必ず確認してください。</p>
+
+      <h2>結局どう理解しておけばよいか</h2>
+      <p>ZDR は「保存しない」であって「送らない」ではない。誰が保存しないのかは Bedrock か Claude Platform on AWS かで変わる。ZDR でもフラグされた内容は最大 2 年残るし、Files API や Batches のような状態を持つ機能は最初から対象外。この 3 点を押さえておけば、社内で「ZDR だから大丈夫」と言われたときに、何が大丈夫で何が大丈夫でないかを切り分けられます。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://platform.claude.com/docs/en/manage-claude/api-and-data-retention" rel="noopener">API and data retention - Claude Platform Docs</a>(ZDR の定義、対象範囲、機能別の適格性、Covered Models の 30 日保持)</li>
+          <li><a href="https://platform.claude.com/docs/en/build-with-claude/claude-platform-on-aws" rel="noopener">Claude Platform on AWS - Claude Platform Docs</a>(データ処理者の違い、ZDR は opt-in、Bedrock との比較)</li>
+          <li><a href="https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock" rel="noopener">Claude in Amazon Bedrock - Claude Platform Docs</a>(zero operator access、モデル ID、データ保持は Bedrock 側が管轄)</li>
+          <li><a href="https://code.claude.com/docs/en/zero-data-retention" rel="noopener">Zero data retention - Claude Code Docs</a>(Claude Code での ZDR、無効化される機能、Fable 5 の扱い)</li>
+          <li><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/data-retention.html" rel="noopener">Data retention - Amazon Bedrock</a>(本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/about-aws/whats-new/2026/07/claude-opus-5-aws/" rel="noopener">Claude Opus 5 is now available on AWS - AWS What's New</a>(質問の元記事。本記事執筆時は取得できず未確認)</li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
