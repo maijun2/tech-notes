@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ペアプロとモブプロの違い、なぜモブへ発展したのか | maijun の技術質問ノート</title>
+  <meta name="description" content="違いは人数ではなく、開発の判断をどの単位で行うかです。ペアは 2 人で 1 台、モブはチーム全員で 1 台に集まり、ペアでは消せなかった質問待ちとレビュー待ちを工程ごと無くしたのがモブです。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="ペアプロとモブプロの違い、なぜモブへ発展したのか">
+  <meta property="og:description" content="違いは人数ではなく、開発の判断をどの単位で行うかです。ペアは 2 人で 1 台、モブはチーム全員で 1 台に集まり、ペアでは消せなかった質問待ちとレビュー待ちを工程ごと無くしたのがモブです。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/pair-vs-mob-programming">
+  <meta property="og:url" content="https://notes.maijun.net/misc/pair-vs-mob-programming">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=%E3%83%9A%E3%82%A2%E3%83%97%E3%83%AD%E3%81%A8%E3%83%A2%E3%83%96%E3%83%97%E3%83%AD%E3%81%AE%E9%81%95%E3%81%84%E3%80%81%E3%81%AA%E3%81%9C%E3%83%A2%E3%83%96%E3%81%B8%E7%99%BA%E5%B1%95%E3%81%97%E3%81%9F%E3%81%AE%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-08-04">2026-08-04</time>
+      </p>
+      <h1>ペアプロとモブプロの違い、なぜモブへ発展したのか</h1>
+
+      <div class="lead">
+        <p>いちばん見えやすい違いは人数(2 人か、チーム全員か)ですが、本質は
+        <strong>開発の判断をどの単位で行うか</strong>にあります。ペアプログラミングは
+        「コードを書く作業を 2 人でやる」開発プラクティスで、モブプログラミングは
+        「チームの作業と意思決定を、全員が同じ時間・同じ場所・同じ 1 台で行う」働き方そのものです。</p>
+        <p>モブへ発展した理由は、ペアにしても消えなかった<strong>質問待ち・レビュー待ち・引き継ぎ</strong>を
+        工程ごと無くすためでした。2011 年に米 Hunter Industries の Woody Zuill のチームが、
+        coding dojo と TDD の練習の延長で偶然たどり着き、Agile2014 の Experience Report として世に出ています。</p>
+      </div>
+
+      <h2>ペアプログラミングのおさらい</h2>
+      <p>ペアプログラミングを世に広めたのは Extreme Programming (XP) です。Kent Beck は
+      1999 年の <em>Extreme Programming Explained</em> で、製品コードは 1 台のマシン、
+      1 つのキーボード、1 つのマウスを 2 人で見ながら書く、と定義しました。役割は
+      キーボードを持つ driver と、少し先の方向を見る navigator に分かれます。</p>
+      <p>ただし XP が発明したわけではありません。Larry Constantine は 1995 年の
+      <em>Constantine on Peopleware</em> で、2 人 1 組で驚くほど速く、バグの少ないコードを書く
+      開発者たちを "Dynamic Duos" として報告しています。同じ 1995 年に Jim Coplien が
+      <em>Pattern Languages of Program Design</em> で "Developing in Pairs" パターンを
+      書き残しました。現場にあった観察を、XP がプラクティスとして規定したという流れです。</p>
+
+      <h2>モブプログラミングの定義</h2>
+      <p>Woody Zuill の言い方を借りると、モブプログラミングは
+      「チーム全員が、同じことを、同じ時間に、同じ場所で、同じコンピュータで行う」開発です。
+      キーボードを持つ driver は 1 人だけで、残りは全員 navigator になります。</p>
+      <p>ここで効いてくるのが、Llewellyn Falco の strong-style pairing の黄金律です。</p>
+      <blockquote>
+        <p>アイデアが自分の頭からコンピュータへ入るには、必ず他の誰かの手を通らなければならない。</p>
+      </blockquote>
+      <p>つまり driver は、セッション中で唯一「自分のアイデアを自分でコードにしない」人です。
+      思いついた人は口で説明するしかないので、全員が同じ理解に留まり続けます。driver は
+      タイマーで交代し、10 分前後を目安にする現場が多いです(議論中はタイマーを止める運用もよく使われます)。</p>
+
+      <h2>2 つを並べた違い</h2>
+      <svg viewBox="0 0 640 340" role="img" aria-label="ペアプログラミングとモブプログラミングの比較図。ペアでは 2 人が文脈を持ち、チームの他メンバーからの質問やレビューの待ちが残る。モブではチーム全員が同じ 1 台に集まるため待ちが発生しない" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px;background:#fff">
+        <defs>
+          <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 z" fill="#9aa7bd"/>
+          </marker>
+        </defs>
+
+        <rect x="14" y="16" width="298" height="308" rx="12" fill="#f7f9ff" stroke="#5b8def"/>
+        <text x="34" y="46" font-size="15" font-weight="bold" fill="#274b8c">ペアプログラミング</text>
+        <text x="34" y="68" font-size="11" fill="#3a5a8c">文脈を持つのは 2 人</text>
+        <rect x="42" y="84" width="112" height="62" rx="6" fill="#fff" stroke="#5b8def"/>
+        <text x="98" y="121" font-size="13" fill="#274b8c" text-anchor="middle">1 台</text>
+        <line x1="72" y1="164" x2="72" y2="148" stroke="#5b8def" stroke-width="1.5"/>
+        <line x1="124" y1="164" x2="124" y2="148" stroke="#5b8def" stroke-width="1.5"/>
+        <circle cx="72" cy="180" r="15" fill="#5b8def"/>
+        <circle cx="124" cy="180" r="15" fill="#5b8def"/>
+        <circle cx="232" cy="104" r="13" fill="#cbd5e6"/>
+        <circle cx="232" cy="152" r="13" fill="#cbd5e6"/>
+        <circle cx="232" cy="200" r="13" fill="#cbd5e6"/>
+        <text x="232" y="80" font-size="10.5" fill="#46506a" text-anchor="middle">他のメンバー</text>
+        <line x1="216" y1="108" x2="168" y2="120" stroke="#9aa7bd" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+        <line x1="216" y1="152" x2="168" y2="140" stroke="#9aa7bd" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+        <line x1="216" y1="196" x2="168" y2="168" stroke="#9aa7bd" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+        <text x="34" y="248" font-size="11.5" fill="#46506a">質問して、返事を待つ</text>
+        <text x="34" y="272" font-size="11.5" fill="#46506a">PR を出して、レビューを待つ</text>
+        <text x="34" y="296" font-size="11.5" fill="#46506a">知識はそのペアの中に留まる</text>
+
+        <rect x="328" y="16" width="298" height="308" rx="12" fill="#f2fbf6" stroke="#2f9e6e"/>
+        <text x="348" y="46" font-size="15" font-weight="bold" fill="#1d6b4a">モブプログラミング</text>
+        <text x="348" y="68" font-size="11" fill="#2c7a56">全員が同じ文脈にいる</text>
+        <rect x="400" y="84" width="154" height="62" rx="6" fill="#fff" stroke="#2f9e6e"/>
+        <text x="477" y="121" font-size="13" fill="#1d6b4a" text-anchor="middle">1 台</text>
+        <line x1="386" y1="176" x2="430" y2="148" stroke="#2f9e6e" stroke-width="1.4"/>
+        <line x1="432" y1="186" x2="452" y2="148" stroke="#2f9e6e" stroke-width="1.4"/>
+        <line x1="477" y1="190" x2="477" y2="148" stroke="#2f9e6e" stroke-width="1.4"/>
+        <line x1="522" y1="186" x2="502" y2="148" stroke="#2f9e6e" stroke-width="1.4"/>
+        <line x1="568" y1="176" x2="524" y2="148" stroke="#2f9e6e" stroke-width="1.4"/>
+        <circle cx="386" cy="191" r="15" fill="#2f9e6e"/>
+        <circle cx="432" cy="201" r="15" fill="#2f9e6e"/>
+        <circle cx="477" cy="205" r="15" fill="#e08b2f"/>
+        <circle cx="522" cy="201" r="15" fill="#2f9e6e"/>
+        <circle cx="568" cy="191" r="15" fill="#2f9e6e"/>
+        <text x="477" y="234" font-size="10.5" fill="#8a5410" text-anchor="middle">driver(10 分程度で交代)</text>
+        <text x="348" y="266" font-size="11.5" fill="#3c5a4c">聞く相手が全員その場にいる</text>
+        <text x="348" y="290" font-size="11.5" fill="#3c5a4c">セッション自体がレビュー</text>
+        <text x="348" y="314" font-size="11.5" fill="#3c5a4c">知識が全員に同時に乗る</text>
+      </svg>
+
+      <table>
+        <thead>
+          <tr><th>観点</th><th>ペアプログラミング</th><th>モブプログラミング</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>人数</td><td>2 人</td><td>チーム全員(3 人以上)</td></tr>
+          <tr><td>キーボード</td><td>2 人で交代</td><td>driver 1 人が持ち、全員で順に回す</td></tr>
+          <tr><td>知識の広がり方</td><td>ペアの組み替えで伝えていく</td><td>構造上、全員が同時に受け取る</td></tr>
+          <tr><td>レビュー</td><td>ペア内は即時。ペア外のレビューは残ることが多い</td><td>セッションがレビューを兼ねるため別工程が消える</td></tr>
+          <tr><td>待ちの扱い</td><td>ペアの外へ質問すると待ちが発生する</td><td>判断できる人が同席しているので待ちが起きない</td></tr>
+          <tr><td>単位</td><td>タスク単位のプラクティス</td><td>チームの働き方そのもの</td></tr>
+        </tbody>
+      </table>
+
+      <h2>モブへ発展した理由</h2>
+      <p>モブプログラミングは、誰かが机上で設計した手法ではありません。2011 年、Hunter Industries の
+      チームが coding dojo(みんなで 1 台を囲んで練習する集まり)と TDD の練習を重ねるうちに、
+      その集団の進め方を実務のコードに持ち込んでみたのが始まりです。Zuill 自身、うまくいっていることに
+      注目してそれを増やす、いわゆる "turn up the good" を毎日繰り返した結果として生まれた、と
+      振り返っています。</p>
+      <p>ではペアで足りなかったのは何かというと、ペアの外側です。ペアを組んでも、仕様の判断を
+      プロダクトオーナーに聞けば返事を待ちますし、別領域のコードを触ればその担当者を待ちます。
+      PR を出せばレビューを待ちます。この待ちの間、仕事は止まっているのに、人はそれぞれ別の仕事を
+      始めるので、着手中の仕事(WIP)だけが増えていきます。</p>
+      <p>チーム全員が同じ部屋で 1 台に向かっていれば、この待ちは原理的に発生しません。
+      判断できる人がその場にいて、その場で決まり、その場でコードになる。Hunter Industries の
+      チームが手応えを感じたのはこの点で、質問の答えを待たなくてよく、全員が常に同じ文脈にいると
+      すごく進む、という実感が出発点になっています。</p>
+      <p>ここは私なりの整理ですが、モブは「人の稼働率(resource efficiency)」を捨てて
+      「仕事が流れる速さ(flow efficiency)」を取る選択です。5 人が別々のタスクを持てば稼働率は
+      100% に見えますが、待ちと引き継ぎと手戻りが混ざるので 1 件が終わるまでは遅くなります。
+      モブは稼働率の見た目を犠牲にして、1 件を最短で終わらせにいきます。稼働率で管理している
+      組織ほどモブが受け入れられにくいのは、この評価軸のズレが理由です。</p>
+
+      <h2>5 人がかりは無駄ではないのか</h2>
+      <p>正直に書くと、「モブは常に速い」と言い切れる一次情報は、今のところ見当たりません。
+      2019 年の systematic literature review では、2 つの文献データベースを探しても対象になる
+      論文が 10 本しか見つからず、報告されている効果(コード品質の向上、生産性の向上)の多くは
+      経験報告と参加者アンケートに基づく主観的なもの、と整理されています。厳密な対照実験は
+      ほとんど行われていません。</p>
+      <p>比較すると、ペアプログラミングのほうが実証研究は蓄積されています。Laurie Williams らが
+      IEEE Software 誌に出した 2000 年の "Strengthening the Case for Pair Programming" は、
+      ペアのほうがより良いソフトウェアをより短時間で作り、開発者も自信を持てるようになったと
+      報告しました。もっとも、こうした効果が課題の難しさや開発者の熟練度に左右されることも
+      後年の研究で指摘されており、無条件に効くわけではありません。</p>
+      <p>なので、導入するなら「速くなるから」ではなく、<strong>知識の偏りをなくしたい、
+      引き継ぎで落ちる情報を無くしたい</strong>という目的で選ぶほうが、期待とのズレが小さいです。</p>
+
+      <h2>使い分けの目安</h2>
+      <p>モブが効きやすいのは、答えが一意に決まらない仕事です。新しい領域の設計判断、
+      誰も読めなくなったレガシーコードの解読、新メンバーのオンボーディング、障害の恒久対策など、
+      「決めるのが難しく、決めた理由を全員が知っておくべき」仕事と相性がいいです。</p>
+      <p>逆に、手順が確定している定型作業、機械的な一括修正、ひたすら調べ物をするフェーズは、
+      ソロかペアのほうが素直です。全員で 1 画面を見ても、待つ人が増えるだけになります。</p>
+
+      <h2>呼び名について</h2>
+      <p>英語の mob には「暴徒」の意味があるため、2020 年ごろから
+      <strong>ensemble programming</strong> と呼び替えるコミュニティが増えました。
+      Maaret Pyhäjärvi の <em>Ensemble Programming Guidebook</em> がその代表です。
+      Zuill 自身は近年 <strong>software teaming</strong> という言い方を使っています。
+      指しているものは同じなので、日本語の記事や社内の会話では「モブプロ」で通じます。</p>
+
+      <h2>まず試すなら</h2>
+      <p>いきなり全業務をモブにする必要はありません。90 分だけ枠を取り、driver を 10 分交代にして、
+      実際に進めたい 1 件を選ぶところから始めるのがおすすめです。タイマーは
+      <code>mobti.me</code> のような Web ツールでも、手元のコマンドでも構いません。</p>
+
+      <pre><code># 10 分ごとに交代の合図を出すだけの簡易タイマー(macOS / Linux)
+while true; do sleep 600; echo "交代してください"; done</code></pre>
+
+      <p>1 回やって「遅い」と感じても、それは想定どおりです。全員の理解が揃うまでの初回コストが
+      乗るので、2 回目以降と、その後に発生しなかった質問やレビューの往復まで含めて評価してください。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://www.agilealliance.org/resources/experience-reports/mob-programming-agile2014/" rel="noopener">Woody Zuill, "Mob Programming: A Whole Team Approach" (Agile2014 Experience Report, Agile Alliance)</a></li>
+          <li><a href="https://www.agilealliance.org/wp-content/uploads/2015/12/ExperienceReport.2014.Zuill_.pdf" rel="noopener">同 Experience Report 本文 (PDF)</a></li>
+          <li><a href="https://agilealliance.org/glossary/mob-programming/" rel="noopener">Agile Alliance Glossary: Mob Programming</a></li>
+          <li><a href="https://agilealliance.org/glossary/pair-programming/" rel="noopener">Agile Alliance Glossary: Pair Programming</a></li>
+          <li><a href="https://www.agilealliance.org/wp-content/uploads/2017/02/GrowingTheMob.pdf" rel="noopener">Chris Lucian, "Growing the Mob" (Hunter Industries, Agile2016 Experience Report, PDF)</a></li>
+          <li><a href="http://c2.com/xp/PairProgramming.html" rel="noopener">Portland Pattern Repository (c2 wiki): Pair Programming</a></li>
+          <li><a href="https://dl.acm.org/doi/10.1109/52.854064" rel="noopener">L. Williams, R. Kessler, W. Cunningham, R. Jeffries, "Strengthening the Case for Pair Programming", IEEE Software 17(4), 2000</a></li>
+          <li><a href="https://ieeexplore.ieee.org/document/8753993/" rel="noopener">"Mob Programming: A Systematic Literature Review", IEEE, 2019</a></li>
+          <li><a href="https://www.sciencedirect.com/science/article/abs/pii/S016412122100114X" rel="noopener">"Mob programming: From avant-garde experimentation to established practice", Journal of Systems and Software, 2021</a></li>
+          <li><a href="https://leanpub.com/ensembleprogramming" rel="noopener">Maaret Pyhäjärvi, <em>Ensemble Programming Guidebook</em></a></li>
+          <li><a href="https://woodyzuill.com/" rel="noopener">Woody Zuill, Software Teaming / Mob Programming</a></li>
+        </ul>
+        <p style="margin: 12px 0 0; font-size: 0.8rem; color: var(--muted); line-height: 1.7;">未確認の点: この記事を書いた環境からは agilealliance.org / ieeexplore.ieee.org 等への
+        直接アクセスが egress ポリシーで遮断されており、上記の PDF・論文本文は全文を取得できていません。
+        本文の記述は各文献の要旨・書誌情報と、Zuill らの公開されている説明にもとづきます。
+        Nosek (1998) や Hannay ら (2009) のような個別の定量値については、一次情報を確認できなかったため
+        本文では触れていません。数字を引用する場合は原典にあたってください。</p>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
