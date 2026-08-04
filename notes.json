@@ -1,5 +1,13 @@
 [
   {
+    "title": "ペアプロとモブプロの違い、なぜモブへ発展したのか",
+    "category": "misc",
+    "path": "misc/pair-vs-mob-programming.html",
+    "date": "2026-08-04",
+    "summary": "違いは人数ではなく、開発の判断をどの単位で行うかです。ペアは 2 人で 1 台、モブはチーム全員で 1 台に集まり、ペアでは消せなかった質問待ちとレビュー待ちを工程ごと無くしたのがモブです。",
+    "tags": ["ペアプログラミング", "モブプログラミング", "mob programming", "ensemble programming", "Woody Zuill", "Extreme Programming", "driver / navigator", "アジャイル"]
+  },
+  {
     "title": "Claude Opus 5 on AWS の ZDR (Zero Data Retention) とは",
     "category": "aws",
     "path": "aws/zero-data-retention-on-aws.html",
