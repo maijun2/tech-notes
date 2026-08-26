@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AWS Data Exchange で日本のマーケティングに使えるデータ | maijun の技術質問ノート</title>
+  <meta name="description" content="日本のマーケティングに効くのは、エリア単位のジオデモグラフィック、B2B の企業属性、POS や求人などの需要シグナル、人流や気象といった外部要因の 4 系統です。個人を特定できるデータは原則出品できないため、エリアか企業を軸に使うのが前提になります。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="AWS Data Exchange で日本のマーケティングに使えるデータ">
+  <meta property="og:description" content="日本のマーケティングに効くのは、エリア単位のジオデモグラフィック、B2B の企業属性、POS や求人などの需要シグナル、人流や気象といった外部要因の 4 系統です。個人を特定できるデータは原則出品できないため、エリアか企業を軸に使うのが前提になります。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/data-exchange-japan-marketing-data">
+  <meta property="og:url" content="https://notes.maijun.net/aws/data-exchange-japan-marketing-data">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=AWS%20Data%20Exchange%20%E3%81%A7%E6%97%A5%E6%9C%AC%E3%81%AE%E3%83%9E%E3%83%BC%E3%82%B1%E3%83%86%E3%82%A3%E3%83%B3%E3%82%B0%E3%81%AB%E4%BD%BF%E3%81%88%E3%82%8B%E3%83%87%E3%83%BC%E3%82%BF">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-08-26">2026-08-26</time>
+      </p>
+      <h1>AWS Data Exchange で日本のマーケティングに使えるデータ</h1>
+
+      <div class="lead">
+        <p>日本のマーケティングで実際に効くのは、大きく 4 系統です。エリア単位のジオデモグラフィック(消費者セグメンテーション、所得、支出)、B2B の企業属性(ファーモグラフィック)、POS や求人や記事といった需要シグナル、そして人流・気象・地図といった外部要因。この 4 つを自社データの横に置く、という使い方になります。</p>
+        <p>先に制約を言っておくと、AWS Data Exchange (ADX) では個人を特定できるデータは原則として出品が禁止されています(合法的にすでに公開されている情報を除く)。つまり「日本の生活者の個人 ID に紐づくリスト」を買ってきて名寄せする、という発想は最初から成立しません。エリアか企業を軸にして、自社の顧客データへ属性を足す方向で設計してください。</p>
+      </div>
+
+      <h2>まず ADX がマーケティングの文脈で何をしてくれるのか</h2>
+      <p>ADX はサードパーティデータのマーケットプレイスです。ファイル、API、Amazon Redshift のデータシェア、Amazon S3 のデータアクセス、AWS Lake Formation という複数の配信形式に対応していて、サブスクライブすると自分の AWS アカウント側でそのまま扱えるようになります。</p>
+      <p>マーケティング用途で効いてくるのは、契約とデータ受け渡しの手間が消えることです。従来なら個別に NDA を巻いて、CSV を FTP で受け取って、更新のたびに手で置き換えて……となる部分が、サブスクリプションと S3 への export に置き換わります。日次更新のデータ製品であれば、プロバイダーが新しい revision を publish した時点で、こちらは同じジョブを回すだけで最新版が手に入ります。</p>
+      <p>公開情報によれば、ADX には 300 社以上のプロバイダーから 3,500 を超えるデータ製品が並んでいて、そのうち 1,000 以上は無料で使えるとされています。まず無料製品とサンプル製品で当たりをつけてから有料版に進む、というのが現実的な進め方です。</p>
+
+      <h2>日本のマーケティングに効く 4 カテゴリ</h2>
+
+      <svg viewBox="0 0 720 340" role="img" aria-label="AWS Data Exchange から得られる 4 カテゴリのデータと、それぞれのマーケティング用途を示す図" style="max-width:100%; height:auto;">
+        <defs>
+          <marker id="arrowM" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#555"/>
+          </marker>
+        </defs>
+
+        <rect x="14" y="26" width="150" height="56" rx="8" fill="#eef3f8" stroke="#4a7ba7"/>
+        <text x="30" y="48" font-size="12.5" font-weight="bold" fill="#22405c">① ジオデモ</text>
+        <text x="30" y="66" font-size="11.5" fill="#333">町丁目・グリッド単位</text>
+
+        <rect x="14" y="98" width="150" height="56" rx="8" fill="#f8f2ea" stroke="#b08040"/>
+        <text x="30" y="120" font-size="12.5" font-weight="bold" fill="#6b4a15">② 企業属性</text>
+        <text x="30" y="138" font-size="11.5" fill="#333">業種・規模・所在地</text>
+
+        <rect x="14" y="170" width="150" height="56" rx="8" fill="#eef5ef" stroke="#5a8a5a"/>
+        <text x="30" y="192" font-size="12.5" font-weight="bold" fill="#2f5030">③ 需要シグナル</text>
+        <text x="30" y="210" font-size="11.5" fill="#333">POS・求人・記事</text>
+
+        <rect x="14" y="242" width="150" height="56" rx="8" fill="#f6eef3" stroke="#96518a"/>
+        <text x="30" y="264" font-size="12.5" font-weight="bold" fill="#5c2d54">④ 外部要因</text>
+        <text x="30" y="282" font-size="11.5" fill="#333">人流・気象・地図</text>
+
+        <line x1="168" y1="54" x2="228" y2="54" stroke="#555" stroke-width="1.5" marker-end="url(#arrowM)"/>
+        <line x1="168" y1="126" x2="228" y2="126" stroke="#555" stroke-width="1.5" marker-end="url(#arrowM)"/>
+        <line x1="168" y1="198" x2="228" y2="198" stroke="#555" stroke-width="1.5" marker-end="url(#arrowM)"/>
+        <line x1="168" y1="270" x2="228" y2="270" stroke="#555" stroke-width="1.5" marker-end="url(#arrowM)"/>
+
+        <rect x="232" y="26" width="270" height="56" rx="8" fill="#f7f8fa" stroke="#aab"/>
+        <text x="248" y="50" font-size="11.5" fill="#333">出店候補の評価、チラシ配布エリアの選定</text>
+        <text x="248" y="68" font-size="11.5" fill="#333">郵便番号・住所からの顧客プロファイリング</text>
+
+        <rect x="232" y="98" width="270" height="56" rx="8" fill="#f7f8fa" stroke="#aab"/>
+        <text x="248" y="122" font-size="11.5" fill="#333">ABM のターゲットリスト作成</text>
+        <text x="248" y="140" font-size="11.5" fill="#333">既存顧客リストへの業種・規模の付与</text>
+
+        <rect x="232" y="170" width="270" height="56" rx="8" fill="#f7f8fa" stroke="#aab"/>
+        <text x="248" y="194" font-size="11.5" fill="#333">カテゴリ内シェアと価格の把握</text>
+        <text x="248" y="212" font-size="11.5" fill="#333">新商品の立ち上がり検知、競合の動向</text>
+
+        <rect x="232" y="242" width="270" height="56" rx="8" fill="#f7f8fa" stroke="#aab"/>
+        <text x="248" y="266" font-size="11.5" fill="#333">来店予測、広告出稿タイミングの調整</text>
+        <text x="248" y="284" font-size="11.5" fill="#333">インバウンド需要の地域別把握</text>
+
+        <line x1="506" y1="162" x2="560" y2="162" stroke="#555" stroke-width="1.5" marker-end="url(#arrowM)"/>
+        <rect x="564" y="98" width="142" height="128" rx="8" fill="#eef3f8" stroke="#4a7ba7"/>
+        <text x="635" y="140" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#22405c">自社データと</text>
+        <text x="635" y="160" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#22405c">結合して分析</text>
+        <text x="635" y="184" text-anchor="middle" font-size="11.5" fill="#333">S3 / Redshift /</text>
+        <text x="635" y="200" text-anchor="middle" font-size="11.5" fill="#333">Athena など</text>
+      </svg>
+
+      <h3>① エリア単位のジオデモグラフィック</h3>
+      <p>いちばん使いどころが分かりやすいのがこれです。日本全国の町丁目やグリッド単位で、世帯構成・年齢層・所得・支出傾向をまとめたデータ製品が出ています。</p>
+      <p>たとえば「Japan Consumer Segmentation」は、国勢調査・政府統計・商用データをもとに、日本の近隣エリアの社会経済的なプロファイルを分類したものです。国際比較用のセグメンテーションと、日本市場に最適化したセグメンテーションの 2 系統を持ち、日本市場向けのほうは 10 グループ 54 カテゴリに分かれているとされています。分析変数として、子どもの有無、成人の年齢、世帯人数、教育水準、住宅の広さ、地価・住宅種別、平均所得(現地通貨建て)などが含まれます。町丁目レベルのサンプル製品も公開されているので、粒度の確認はサンプルでできます。</p>
+      <p>グローバルに揃った粒度で欲しい場合は、Experian の「WorldView」系の製品があります。こちらは世界を 250m × 250m のグリッドで覆い、ジオデモグラフィック、可処分所得、消費支出、セグメンテーション、POI を提供するもので、日本単体の製品も別立てで出ています。国内だけでなくアジア数か国を同じ物差しで比較したいときは、こちらのほうが素直です。</p>
+      <p>使い方はシンプルで、自社の顧客マスタにある住所や郵便番号をエリアコードに寄せて、そこにセグメントを結合します。個人単位の属性は買えなくても、「うちの優良顧客はこのセグメントに偏っている」までは出せます。あとはその偏りをもとに、未開拓の同一セグメントのエリアへ配布や出店を寄せる、という流れです。</p>
+
+      <h3>② B2B の企業属性(ファーモグラフィック)</h3>
+      <p>B2B マーケティングなら、日本国内の法人データが対象になります。Techsalerator は日本国内 570 万社規模の企業データを ADX / AWS Marketplace に出していて、売上規模、所在地、従業員数、業種でセグメントを切れるとしています。用途としてはダイレクトマーケティング、ビジネスインテリジェンス、業界分析が挙げられています。</p>
+      <p>実務でよく効くのは、新規リスト作成よりもむしろ既存データのエンリッチメントです。自社の商談履歴に業種コードと従業員数レンジを後付けすると、「どのセグメントで勝っているのか」がようやく集計できるようになります。ここが埋まっていない会社は本当に多いです。</p>
+      <p>なお法人データは、日本の商習慣的な表記ゆれ(株式会社の前株・後株、旧社名、支店表記)で結合に苦労します。名寄せの精度が読めないうちに全社分を買うより、サンプルで自社リストとの突合率を測ってから判断してください。</p>
+
+      <h3>③ 需要シグナル(POS・求人・記事)</h3>
+      <p>ここに日本発のプロバイダーが並びます。2020 年 9 月に AWS Marketplace と ADX が日本法人のセラー・データプロバイダーに対応し、その時点で日本経済新聞社(記事データと POS データ)、QUICK(株式などのマーケットデータ)、JMDC(医療データベース)が製品を掲載しています。日経は記事データと POS データを日次で提供でき、意思決定や AI / 機械学習の分析に使える、という趣旨のコメントを出しています。</p>
+      <p>消費財のマーケティングであれば、POS データはカテゴリ内シェア、店頭価格、新商品の立ち上がりを見るための土台になります。記事データは、競合や業界のニュースを構造化して取り込み、話題量の変化を追う用途に向きます。</p>
+      <p>やや変化球ですが、求人データも日本市場のシグナルとして使えます。ADX には日本(JP)向けの求人票の履歴データ製品があり、企業がどの職種をどのタイミングで募集したかが分かります。SaaS や採用関連サービスのように「投資が動いている企業」を狙いたい場合、求人の増減は決算より早く出るシグナルです。</p>
+
+      <h3>④ 外部要因(人流・気象・地図)</h3>
+      <p>ADX には、モバイルアプリや SDK 由来のモビリティデータや、POI 単位の日次来訪者数といった製品が並んでいます。ただし、この手の製品は日本のカバレッジがまちまちです。グローバル製品の説明文に日本が含まれていても、実際の国内サンプル数が実用に足るかは別問題なので、必ず日本分のサンプルで確認してください。日本国内の人流に関しては、ADX 経由ではなく国内事業者と直接契約するほうが粒度もサポートも良い、という結論になることも普通にあります。</p>
+      <p>気象データは、需要予測と広告出稿の調整に直結します。API 形式のデータセットはリアルタイム性のある用途、つまり気象・マーケットデータ・位置情報に向いている、というのが ADX 側の整理です。飲料やアイス、衣料のように気温で売れ行きが変わるカテゴリなら、まずここから触るのが投資対効果は高いはずです。</p>
+
+      <h2>日本のマーケで買う前に見る 5 点</h2>
+      <p>ADX の製品ページは英語で、しかもグローバル製品が大半です。日本で使えるかどうかは、次の 5 点で切り分けると外しません。</p>
+      <table>
+        <thead>
+          <tr><th>確認項目</th><th>見るべきポイント</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>日本のカバレッジ</td><td>「global」表記でも日本の実データが薄いことがある。無料のサンプル製品で行数と地域分布を確認する</td></tr>
+          <tr><td>粒度</td><td>都道府県単位なのか、市区町村なのか、町丁目・グリッドなのか。エリアマーケティングでは市区町村では粗すぎることが多い</td></tr>
+          <tr><td>更新頻度</td><td>年次のスナップショットか、日次の revision 更新か。需要シグナル用途なら日次でないと意味がない</td></tr>
+          <tr><td>DSA(Data Subscription Agreement)</td><td>プロバイダーの利用規約。広告配信への利用可否、再配布の可否、社外への出力可否がここに書かれている</td></tr>
+          <tr><td>配信形式</td><td>ファイル / API / Redshift / S3 / Lake Formation のどれか。既存の分析基盤に合わせて選ぶ</td></tr>
+        </tbody>
+      </table>
+      <p>とくに DSA は読み飛ばさないでください。データ製品をサブスクライブする時点で、価格・期間・支払スケジュール・DSA・返金ポリシーを含むオファー条件に同意したことになります。「買ったデータを広告のターゲティングに使ってよいか」は製品ごとに違います。</p>
+
+      <h2>個人データは買えない、という前提</h2>
+      <p>ADX には、掲載できないデータカテゴリが定められています。個人を特定できる情報は、それが合法的にすでに一般公開されている場合を除いて、データ製品に含めることができません。HIPAA 対象の PHI を含む製品は、AWS Artifact で BAA を結んだ HIPAA アカウントでないと export できない、という制御も入っています。</p>
+      <p>この制約は日本のマーケティングにとってむしろ好都合に働きます。個人単位の外部データを買って自社 DB にマージする設計は、そもそも個人情報保護法の第三者提供や本人同意の論点を全部抱え込みます。ADX で買えるのがエリア単位・企業単位のデータに寄っているぶん、法務の確認は「利用規約の範囲内か」に集中できます。</p>
+      <p>どうしても他社の顧客データと突き合わせたい場合は、データを買うのではなく AWS Clean Rooms の側の話になります。Clean Rooms は、参加企業が互いの元データを開示せずに共同分析するための仕組みです。小売とメーカーの共同分析のように、相手が持っている購買データと自社の広告接触データを重ねたい、という要件はこちらで設計します。</p>
+
+      <h2>探し方と受け取り方</h2>
+      <p>探すときは AWS Data Exchange のコンソール、または AWS Marketplace の検索を使います。カテゴリで絞ってから、製品名やタイトルに国名が入っているものを拾うのが早いです。まず「Japan」「Japanese」で検索し、無料製品とサンプル製品を先に試します。</p>
+      <p>サブスクライブしたあとは、権利を持っているデータセットが自分のアカウントから見えるようになります。CLI であれば、次のように <code>ENTITLED</code> を指定して一覧します。</p>
+      <pre><code># サブスクライブ済み(権利のある)データセットを一覧する
+aws dataexchange list-data-sets --origin ENTITLED
+
+# 特定のリビジョンのアセットを S3 へ export するジョブを作る
+aws dataexchange create-job \
+  --type EXPORT_ASSETS_TO_S3 \
+  --details file://export-job-details.json</code></pre>
+      <p>あとは S3 に落ちたファイルを Amazon Athena で読むなり、AWS Glue で加工するなりです。Redshift のデータシェア形式であれば export すら不要で、プロバイダー側のデータをそのまま Redshift から参照できます。自社の顧客データが Redshift にあるなら、この形式の製品を選ぶと結合が一番短く済みます。</p>
+      <p>コストの考え方も押さえておきます。ADX 自体にサブスクライバー向けの独立したサービス料金はなく、支払うのはデータ製品の価格です。加えて、export 先の S3 のストレージ料金やクエリの料金は通常どおり自分のアカウントに乗ります。公開価格が合わない場合は、プロバイダーと個別条件を詰める private offer という枠組みがあり、価格・期間・支払スケジュール・DSA・返金ポリシーを公開オファーと変えられます。既にプロバイダーと直接契約がある場合は、それを ADX 上の配信に載せ替える BYOS (Bring Your Own Subscription) も使えます。</p>
+
+      <h2>未確認の部分</h2>
+      <p>本記事の執筆時点で、ネットワークポリシーにより <code>aws.amazon.com</code> と <code>docs.aws.amazon.com</code> への接続がブロックされており、AWS 公式ドキュメントと各データ製品ページの本文を直接取得できていません。以下は検索結果に現れた要約に基づく記述で、実際に検討する際は製品ページの原文で裏取りしてください。</p>
+      <ul>
+        <li>個々のデータ製品(Japan Consumer Segmentation、Techsalerator の日本法人データ、日本向け求人履歴データなど)の現在の提供状況・価格・カバレッジ。データ製品は入れ替わりがあるため、掲載終了している可能性があります</li>
+        <li>日経・QUICK・JMDC の各製品が現在も ADX に掲載されているか、および提供内容の詳細</li>
+        <li>ADX の製品数(3,500 超)とプロバイダー数(300 超)、無料製品数(1,000 超)の最新値</li>
+        <li>AWS Lake Formation 形式のデータセットが preview を脱しているかどうか</li>
+      </ul>
+      <p>日本のマーケティング用途では、製品説明の「global coverage」を鵜呑みにせず、必ず無料サンプルで日本分の実データを確認する。ここだけは省略しないでください。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/data-exchange/latest/userguide/what-is.html" rel="noopener">What is AWS Data Exchange? - AWS Data Exchange User Guide</a>(サービス概要。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://docs.aws.amazon.com/data-exchange/latest/userguide/data-sets.html" rel="noopener">Data in AWS Data Exchange - AWS Data Exchange User Guide</a>(Files / API / Amazon Redshift / Amazon S3 / AWS Lake Formation の 5 形式。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://docs.aws.amazon.com/data-exchange/latest/userguide/product-subscriptions.html" rel="noopener">Product subscriptions in AWS Data Exchange - AWS Data Exchange User Guide</a>(オファー条件と DSA、掲載できないデータカテゴリ。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://docs.aws.amazon.com/data-exchange/latest/userguide/subscribe-to-private-offer.html" rel="noopener">Accepting private products and offers in AWS Data Exchange</a>(private offer の条件。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://docs.aws.amazon.com/data-exchange/latest/userguide/subscribe-to-byos-offer.html" rel="noopener">Accepting Bring Your Own Subscription (BYOS) offers in AWS Data Exchange</a>(既存契約の載せ替え。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/jp/about-aws/whats-new/2020/09/aws-marketplace-and-aws-data-exchange-now-support-sellers-and-data-providers-from-japan/" rel="noopener">AWS Marketplace および AWS Data Exchange 上で、日本法人のソフトウェアベンダー、データプロバイダー、コンサルティングパートナーが自社のソフトウェアやサービスを提供開始</a>(日経・QUICK・JMDC の掲載。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/marketplace/pp/prodview-muro2llwujxpm" rel="noopener">Japan Consumer Segmentation – Chomaku - AWS Marketplace</a>(町丁目単位の消費者セグメンテーション。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/marketplace/pp/prodview-p2sjkeiifj426" rel="noopener">WorldView - Japan - Demographics - AWS Marketplace</a>(250m グリッドのジオデモグラフィック。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/marketplace/pp/prodview-3cenes64puwrc" rel="noopener">Business Data Japan / 5.7 Million Companies in Japan (Sample) - AWS Marketplace</a>(日本の法人データ。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/marketplace/pp/prodview-76k5sp7p2suhc" rel="noopener">Historical Job Postings for Japan (JP) - AWS Marketplace</a>(日本向け求人票の履歴データ。本記事執筆時は取得できず未確認)</li>
+          <li><a href="https://aws.amazon.com/data-exchange/pricing/" rel="noopener">AWS Data Exchange の料金</a>(本記事執筆時は取得できず未確認)</li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

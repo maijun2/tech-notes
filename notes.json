@@ -1,5 +1,13 @@
 [
   {
+    "title": "AWS Data Exchange で日本のマーケティングに使えるデータ",
+    "category": "aws",
+    "path": "aws/data-exchange-japan-marketing-data.html",
+    "date": "2026-08-26",
+    "summary": "日本のマーケティングで実際に効くのは、大きく 4 系統です。エリア単位のジオデモグラフィック(消費者セグメンテーション、所得、支出)、B2B の企業属性(ファーモグラフィック)、POS や求人や記事といった需要シグナル、そして人流・気象・地図といった外部要因。",
+    "tags": ["AWS Data Exchange", "AWS Marketplace", "マーケティング", "ジオデモグラフィック", "POS データ", "ファーモグラフィック", "AWS Clean Rooms", "Amazon Redshift", "データマーケットプレイス"]
+  },
+  {
     "title": "ペアプロとモブプロの違い、なぜモブへ発展したのか",
     "category": "misc",
     "path": "misc/pair-vs-mob-programming.html",
