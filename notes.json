@@ -1,5 +1,13 @@
 [
   {
+    "title": "Windows の Kiro Crew で Computer Use を使うとき、Node などの追加インストールは必要か",
+    "category": "misc",
+    "path": "misc/kiro-crew-windows-computer-use-prerequisites.html",
+    "date": "2026-09-15",
+    "summary": "PowerPoint やエクスプローラといったネイティブ Windows アプリを操作するだけなら、追加インストールは不要です。Settings → Computer Use を ON にするだけで動きます。",
+    "tags": ["Kiro Crew", "Computer Use", "Windows", "UI Automation", "Playwright", "Node.js", "playwright-cli", "Kiro CLI", "サンドボックス"]
+  },
+  {
     "title": "AWS Data Exchange で日本のマーケティングに使えるデータ",
     "category": "aws",
     "path": "aws/data-exchange-japan-marketing-data.html",

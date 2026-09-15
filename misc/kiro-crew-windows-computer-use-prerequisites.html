@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Windows の Kiro Crew で Computer Use を使うとき、Node などの追加インストールは必要か | maijun の技術質問ノート</title>
+  <meta name="description" content="Computer Use 自体は追加インストール不要ですが、Kiro Crew の Browser 機能を使う場合だけは Node.js 20 以上と playwright-cli のインストールが必要です。">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Windows の Kiro Crew で Computer Use を使うとき、Node などの追加インストールは必要か">
+  <meta property="og:description" content="Computer Use 自体は追加インストール不要ですが、Kiro Crew の Browser 機能を使う場合だけは Node.js 20 以上と playwright-cli のインストールが必要です。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/kiro-crew-windows-computer-use-prerequisites">
+  <meta property="og:url" content="https://notes.maijun.net/misc/kiro-crew-windows-computer-use-prerequisites">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Windows%20%E3%81%AE%20Kiro%20Crew%20%E3%81%A7%20Computer%20Use%20%E3%82%92%E4%BD%BF%E3%81%86%E3%81%A8%E3%81%8D%E3%80%81Node%20%E3%81%AA%E3%81%A9%E3%81%AE%E8%BF%BD%E5%8A%A0%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%AB%E3%81%AF%E5%BF%85%E8%A6%81%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="../styles/site.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">MISC</span>
+        <time data-pagefind-meta="date" datetime="2026-09-15">2026-09-15</time>
+      </p>
+      <h1>Windows の Kiro Crew で Computer Use を使うとき、Node などの追加インストールは必要か</h1>
+
+      <div class="lead">
+        <p>PowerPoint やエクスプローラといった <strong>ネイティブ Windows アプリを操作するだけなら、追加インストールは不要</strong>です。Settings → Computer Use を ON にするだけで動きます。Windows ドライバは UI Automation を raw ctypes COM で直接呼ぶ実装(<code>comtypes</code> すら使わない)で、Node.js にも外部ランタイムにも依存しません。</p>
+        <p>ただし <strong>ブラウザだけは話が別</strong>です。Kiro Crew の Browser 機能は <code>playwright-cli</code> を叩く仕組みなので、<strong>Node.js 20 以上</strong>と <code>@playwright/cli</code> のグローバルインストール、そして Chromium の取得が必要になります。ブラウザ操作を Computer Use だけで済ませることも可能ですが、速度と安定性は Browser 機能に劣ります。</p>
+      </div>
+
+      <h2>前提: インストール形態によって「もともと必要なもの」が違う</h2>
+
+      <p>まず Computer Use の話に入る前に、Kiro Crew 本体のインストール形態を押さえておきます。Windows ネイティブには 2 つの導入パスがあり、前提ソフトが異なります。</p>
+
+      <table>
+        <tr>
+          <th>形態</th>
+          <th>Python</th>
+          <th>Node.js</th>
+          <th>その他</th>
+        </tr>
+        <tr>
+          <td>デスクトップインストーラ(署名済み <code>KiroCrew-Setup.exe</code>)</td>
+          <td>不要(backend 同梱)</td>
+          <td>不要</td>
+          <td>Kiro CLI(<code>kiro-cli</code>)は別途</td>
+        </tr>
+        <tr>
+          <td>ソースインストール(ネイティブ)</td>
+          <td><strong>必須</strong>(3.12〜3.13、Windows の検証済みは 3.12)</td>
+          <td>任意</td>
+          <td>Git for Windows、<code>kiro-cli</code></td>
+        </tr>
+      </table>
+
+      <p>デスクトップインストーラは backend をバンドルしているため、公式ドキュメントも「no separate Python install needed」と明記しています。ソースインストールの場合の Node.js は <strong>React dashboard をビルドするための任意の前提</strong>で、入れなければ gateway が prebuilt bundle を配信します。つまり Node.js は、この時点ではどちらの形態でも必須ではありません。</p>
+
+      <p>なお、どちらの形態でも <strong>Kiro CLI のインストールとサインインは人間が自分で行う</strong>必要があります。Kiro Crew は既定のチャット backend を Kiro CLI に委譲する設計で、リモートインストーラのダウンロードもログインプロセスの起動もしません。</p>
+
+      <pre><code># ソースインストールの最小手順(PowerShell)
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[voice]"
+
+kirocrew setup
+kirocrew gateway</code></pre>
+
+      <h2>Computer Use 本体: ON にするだけで追加インストールはない</h2>
+
+      <p>Computer Use は既定で OFF です。有効化は dashboard の <strong>Settings → Computer Use</strong> から行い、実体は <code>~/.kiro/crew/computer_use.json</code> という 1 ファイルです。これは agent が読み書きできない場所に置かれた「keystone(要石)」で、ファイルが無い・壊れている・<code>"enabled": "false"</code> のような型違いの場合はすべて <strong>無効</strong>に倒れます。</p>
+
+      <pre><code>{ "enabled": false, "allowed_apps": [], "extra_denied_apps": [] }</code></pre>
+
+      <p>Windows のドライバは <code>UIAutomationCore</code> を raw ctypes COM 経由で呼び、画面キャプチャは <code>PrintWindow</code> / GDI+ を使います。仕様書には「UIAutomationCore over raw ctypes COM (no <code>comtypes</code>)」と書かれており、<strong>pip の追加パッケージすら挟んでいません</strong>。したがって PowerPoint、Excel、エクスプローラ、設定アプリといったネイティブアプリの読み取り(<code>computer_list_apps</code> / <code>computer_get_state</code>)と入力(click / type / set value / scroll)は、Computer Use の ON 以外に何も要りません。</p>
+
+      <p>要素を指定した操作は UI Automation の control pattern を通るため、<strong>あなたのマウスカーソルもキーボードフォーカスも奪いません</strong>。これが <code>click_method: "auto"</code> の解決先です。</p>
+
+      <h2>ブラウザだけは Node.js 20 以上が必要</h2>
+
+      <p>Kiro Crew の Browser 機能は Playwright の agent CLI である <code>playwright-cli</code> を、agent の通常のコマンドパス上で実行する仕組みです。プラットフォーム要件として <strong>Node.js 20 or newer</strong> が明記されています。</p>
+
+      <pre><code># Browser 機能のインストール(gateway が自動実行する内容)
+npm install -g --prefix &lt;data-home&gt;/playwright-cli @playwright/cli@latest
+playwright-cli install-browser chromium</code></pre>
+
+      <p>ポイントは 3 つです。</p>
+
+      <ul>
+        <li><strong>グローバルインストールのみ</strong>。<code>npx</code> は実行のたびに npm registry を引き直すため、トークン失効でセッション中に機能が落ちる。グローバルなら registry 認証はインストール時だけで済む</li>
+        <li><strong><code>PATH</code> は参照されない</strong>。gateway は <code>&lt;data-home&gt;/playwright-cli</code> 配下、次に書き換え不可能な固定システムパスの launcher だけを採用し、そこに native な Node 実行ファイルを封じ込めて直接呼ぶ</li>
+        <li><strong>企業 PC 向けの逃げ道はある</strong>。<code>playwright-cli.ps1</code>(Windows 用の standalone installer)は、要件を満たす Node が無ければ公式リリースを SHA-256 検証付きで取得して <strong>Node を bootstrap</strong> します。人間が手で実行するもので、製品側からは呼ばれません</li>
+      </ul>
+
+      <h2>ではブラウザも Computer Use で操作すればいいのでは?</h2>
+
+      <p>技術的には可能です。Chrome や Edge のウィンドウも UI Automation から見えるので、Node.js を入れずに Computer Use だけでブラウザを触れます。ただし <strong>コストが大きい</strong>点は理解しておくべきです。仕様書には実測値として、実際の Chromium ウィンドウで 1200 ノードの予算に達するまで <strong>約 630ms</strong>(Windows の walk は macOS より明確に遅い)、状態を変える操作は 2 回 walk する、と書かれています。フォーム入力やページ取得の反復には向きません。</p>
+
+      <figure>
+        <svg viewBox="0 0 660 300" role="img" aria-label="操作対象ごとに必要な前提ソフトを示す判断フロー図" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="660" height="300" fill="#ffffff"></rect>
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#9ca3af"></path>
+            </marker>
+          </defs>
+
+          <rect x="20" y="118" width="150" height="64" rx="8" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"></rect>
+          <text x="95" y="145" text-anchor="middle" font-size="13" font-weight="bold" fill="#3730a3">操作したい対象は?</text>
+          <text x="95" y="165" text-anchor="middle" font-size="11" fill="#4b5563">Windows ネイティブ</text>
+
+          <line x1="170" y1="140" x2="230" y2="75" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"></line>
+          <line x1="170" y1="160" x2="230" y2="225" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"></line>
+
+          <rect x="235" y="40" width="180" height="70" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"></rect>
+          <text x="325" y="66" text-anchor="middle" font-size="13" font-weight="bold" fill="#065f46">PowerPoint / Excel</text>
+          <text x="325" y="86" text-anchor="middle" font-size="11" fill="#064e3b">エクスプローラ など</text>
+
+          <rect x="235" y="195" width="180" height="70" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"></rect>
+          <text x="325" y="221" text-anchor="middle" font-size="13" font-weight="bold" fill="#92400e">ブラウザ</text>
+          <text x="325" y="241" text-anchor="middle" font-size="11" fill="#78350f">Web UI の操作</text>
+
+          <line x1="415" y1="75" x2="465" y2="75" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"></line>
+          <line x1="415" y1="230" x2="465" y2="230" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"></line>
+
+          <rect x="470" y="40" width="170" height="70" rx="8" fill="#ffffff" stroke="#10b981" stroke-width="1.5"></rect>
+          <text x="555" y="66" text-anchor="middle" font-size="12" font-weight="bold" fill="#065f46">Computer Use を ON</text>
+          <text x="555" y="88" text-anchor="middle" font-size="11" fill="#4b5563">追加インストールなし</text>
+
+          <rect x="470" y="150" width="170" height="60" rx="8" fill="#ffffff" stroke="#f59e0b" stroke-width="1.5"></rect>
+          <text x="555" y="174" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400e">Browser 機能</text>
+          <text x="555" y="194" text-anchor="middle" font-size="11" fill="#4b5563">Node.js 20+ が必要</text>
+
+          <rect x="470" y="222" width="170" height="60" rx="8" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="4 3"></rect>
+          <text x="555" y="246" text-anchor="middle" font-size="12" font-weight="bold" fill="#374151">Computer Use で代用</text>
+          <text x="555" y="266" text-anchor="middle" font-size="11" fill="#6b7280">Node 不要だが遅い</text>
+        </svg>
+        <figcaption>操作対象で分岐する。追加インストールが要るのはブラウザを Browser 機能で扱う場合だけ。</figcaption>
+      </figure>
+
+      <h2>Windows 固有の制限(事前に知っておきたい点)</h2>
+
+      <p>Node の有無とは別に、Windows の Computer Use には macOS と異なる制約があります。いずれも公式ドキュメントに明記された仕様です。</p>
+
+      <ul>
+        <li><strong>昇格していない gateway は昇格ウィンドウを読めません</strong>(UIPI)。secure desktop はどのアプリからも到達不能で、これは仕様であって不具合ではありません</li>
+        <li><strong>swapchain で描画されるウィンドウはキャプチャできません</strong>。Windows Terminal はスクリーンショット無しのツリーだけが返ります</li>
+        <li><strong><code>type_text</code> / <code>press_key</code> はキーボードフォーカスを奪います</strong>。Windows にはプロセス単位の入力配送(macOS の <code>CGEventPostToPid</code> 相当)が無いためです。結果にもその旨が明示されます</li>
+        <li><strong>座標クリックは <code>click_method: "global"</code> の明示指定が必要</strong>です。実カーソルが動くため、<code>auto</code> はこれを解決先に選びません</li>
+        <li><strong>ツリーの walk が遅い</strong>ため、<code>max_tree_nodes</code> の引き上げは慎重に</li>
+      </ul>
+
+      <h2>あわせて注意: Windows には OS サンドボックスが無い</h2>
+
+      <p>Computer Use とは直接関係しませんが、Windows ネイティブ環境を選ぶ際に一番効いてくる差分です。Kiro Crew の OS レベルサンドボックス(Linux の user namespace、macOS の <code>sandbox-exec</code>)は Windows に存在せず、<strong>インストールして解決できるものもありません</strong>。</p>
+
+      <p>チャット本体は Kiro CLI 内蔵のサンドボックスに委譲されるので問題ありませんが、スクリプト、hooks、サードパーティ ACP backend、MCP プローブ、<code>gh</code>/<code>glab</code> といった経路は <strong>既定で unconfined(無拘束)で実行されます</strong>。これは「有効化してしまったバイパス」ではなく、このプラットフォームの文書化された既定値です。拒否したい場合は <code>%USERPROFILE%\.kiro\crew\config.json</code> で明示します。</p>
+
+      <pre><code>{ "agent": { "sandbox_allow_unsandboxed_exec": false } }</code></pre>
+
+      <p>ただしこの設定を入れると、MCP サーバ、app backend、script cron、hooks などがサンドボックスエラーで失敗するようになります。現在の状態は <code>kirocrew doctor</code> の <strong>Sandbox</strong> 欄で確認できます。</p>
+
+      <h2>PowerPoint 資料を「作る」用途なら別の選択肢もある</h2>
+
+      <p>Kiro Crew には PPTX Maker という、チャットから実際の <code>.pptx</code> を生成する組み込みアプリがあります。ただし対応プラットフォームは <strong>macOS と Linux のみ</strong>です(エンジンの toolchain が POSIX の venv レイアウトを前提としているため、Python 自体は Windows でも import できるが manifest 側で抑止されている)。</p>
+
+      <p>したがって Windows ネイティブ環境では、PowerPoint に関しては <strong>実際の PowerPoint アプリを Computer Use で操作する</strong>形になります。この用途に追加インストールは不要です。</p>
+
+      <h2>まとめ</h2>
+
+      <ul>
+        <li>Computer Use を ON にするだけ → <strong>追加インストール不要</strong>(PowerPoint、Excel、エクスプローラ等)</li>
+        <li>Browser 機能でブラウザを操作 → <strong>Node.js 20 以上 + <code>@playwright/cli</code> + Chromium</strong> が必要</li>
+        <li>ブラウザを Computer Use で代用 → Node 不要だが walk が遅く、反復作業には不向き</li>
+        <li>デスクトップインストーラなら Python も不要。ソースインストールなら Python 3.12 が必須</li>
+        <li>いずれの場合も <code>kiro-cli</code> のインストールとサインインは自分で行う</li>
+      </ul>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://github.com/kirodotdev/KiroCrew/blob/main/docs/guides/windows-install.md" rel="noopener">KiroCrew — Installing &amp; Testing Kiro Crew on Windows(Prerequisites / Per-feature status on Windows)</a></li>
+          <li><a href="https://github.com/kirodotdev/KiroCrew/blob/main/docs/system-specs/modules/computer-use.md" rel="noopener">KiroCrew — Computer Use Module(The keystone primary enable / The Windows driver)</a></li>
+          <li><a href="https://github.com/kirodotdev/KiroCrew/blob/main/docs/system-specs/modules/browser.md" rel="noopener">KiroCrew — Browser Module(Install flow / Platform notes / Standalone enterprise installer)</a></li>
+          <li><a href="https://github.com/kirodotdev/KiroCrew/blob/main/docs/system-specs/modules/pptx-maker.md" rel="noopener">KiroCrew — PPTX Maker Module(Platform)</a></li>
+          <li><a href="https://kiro.dev/docs/crew/features/computer-use/" rel="noopener">Kiro Docs — Crew / Features / Computer Use</a></li>
+          <li><a href="https://kiro.dev/docs/crew/installation/" rel="noopener">Kiro Docs — Crew / Installation</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
