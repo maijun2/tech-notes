@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google マップのタイムラインはなぜモバイルアプリ限定になったのか | maijun の技術質問ノート</title>
+  <meta name="description" content="タイムラインのデータ保存先が Google のサーバーから各スマートフォン本体に移されたためで、Google は「自分のデータをより細かく管理できるようにする」プライバシー強化策と説明しています。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Google マップのタイムラインはなぜモバイルアプリ限定になったのか">
+  <meta property="og:description" content="タイムラインのデータ保存先が Google のサーバーから各スマートフォン本体に移されたためで、Google は「自分のデータをより細かく管理できるようにする」プライバシー強化策と説明しています。">
+  <link rel="canonical" href="https://notes.maijun.net/misc/google-maps-timeline-on-device">
+  <meta property="og:url" content="https://notes.maijun.net/misc/google-maps-timeline-on-device">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Google%20%E3%83%9E%E3%83%83%E3%83%97%E3%81%AE%E3%82%BF%E3%82%A4%E3%83%A0%E3%83%A9%E3%82%A4%E3%83%B3%E3%81%AF%E3%81%AA%E3%81%9C%E3%83%A2%E3%83%90%E3%82%A4%E3%83%AB%E3%82%A2%E3%83%97%E3%83%AA%E9%99%90%E5%AE%9A%E3%81%AB%E3%81%AA%E3%81%A3%E3%81%9F%E3%81%AE%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-misc)">その他</span>
+        <time data-pagefind-meta="date" datetime="2026-09-24">2026-09-24</time>
+      </p>
+      <h1>Google マップのタイムラインはなぜモバイルアプリ限定になったのか</h1>
+
+      <div class="lead">
+        <p>タイムラインのデータ保存先が、Google のサーバー(Google アカウント)から各スマートフォン本体に移されたためです。
+        Google は 2023 年 12 月の公式発表で、この変更を「自分のデータをより細かく管理できるようにする」ためのプライバシー強化策と説明しています。
+        データが端末の中にしかなければ、ブラウザ版の Google マップからは参照できません。Web 版がなくなったのは、この設計変更の帰結です。
+        なお、警察が Google に位置情報の提出を求める「ジオフェンス令状」への対応が背景にあるという見方も広く報じられていますが、Google 自身はそれを理由として明言していません。</p>
+      </div>
+
+      <h2>Google が公式に説明している内容</h2>
+      <p>2023 年 12 月、Google マップのプロダクト担当ディレクター Marlo McGriff 氏が公式ブログ
+      「Updates to Location History and new controls coming soon to Maps」で次の変更を発表しました。</p>
+      <ul>
+        <li><strong>端末内保存</strong>: 「ロケーション履歴(Location History)」をオンにしている一部ユーザー(既定ではオフ)について、
+          タイムラインを端末上に直接保存する。趣旨は「データをこれまで以上に自分で管理できるようにする」こと</li>
+        <li><strong>暗号化バックアップ</strong>: 機種変更などに備えてクラウドへのバックアップは選べる。バックアップは自動的に暗号化され、
+          <strong>Google を含め誰も読めない</strong></li>
+        <li><strong>自動削除の既定値を短縮</strong>: ロケーション履歴を新たにオンにした場合、自動削除の既定値は 3 か月(従来は 18 か月)</li>
+        <li>あわせて、場所に紐づく検索・経路・訪問履歴をまとめて消せる機能や、青いドット(現在地)から位置情報の設定を確認できる UI も追加</li>
+      </ul>
+      <p>名称も変わりました。設定名は「ロケーション履歴」から「タイムライン」になり、ユーザーから見える機能名に揃えられています。</p>
+
+      <h2>なぜ「Web 版がなくなる」のか(仕組み)</h2>
+      <p>Web 版のタイムライン(旧 <code>google.com/maps/timeline</code>)は、Google のサーバーに蓄積された位置履歴をブラウザに表示する仕組みでした。
+      新方式では履歴の正本が各端末にあり、クラウドに置かれるのは Google 自身も復号できない暗号化バックアップだけです。
+      このため、サーバー側で履歴を読み出してブラウザに描画する経路が成り立ちません。</p>
+      <svg viewBox="0 0 520 250" role="img" aria-label="変更前はサーバーに履歴があり Web とアプリの両方から見られたが、変更後は端末に履歴がありクラウドには暗号化バックアップのみが置かれる図" style="max-width:100%;height:auto;display:block;margin:1rem auto;">
+        <rect x="0" y="0" width="520" height="250" fill="#f5f7fa"/>
+        <text x="130" y="22" font-size="14" fill="#333" text-anchor="middle" font-weight="bold">変更前(〜2024)</text>
+        <text x="390" y="22" font-size="14" fill="#333" text-anchor="middle" font-weight="bold">変更後</text>
+        <line x1="260" y1="10" x2="260" y2="240" stroke="#ccc" stroke-width="1"/>
+        <!-- before -->
+        <rect x="60" y="40" width="140" height="50" rx="6" fill="#fff" stroke="#36c" stroke-width="2"/>
+        <text x="130" y="62" font-size="12" fill="#36c" text-anchor="middle">Google のサーバー</text>
+        <text x="130" y="79" font-size="11" fill="#36c" text-anchor="middle">位置履歴(平文で処理可能)</text>
+        <rect x="20" y="170" width="95" height="40" rx="6" fill="#fff" stroke="#666"/>
+        <text x="67" y="195" font-size="12" fill="#333" text-anchor="middle">スマホアプリ</text>
+        <rect x="145" y="170" width="95" height="40" rx="6" fill="#fff" stroke="#666"/>
+        <text x="192" y="195" font-size="12" fill="#333" text-anchor="middle">Web ブラウザ</text>
+        <line x1="100" y1="90" x2="67" y2="170" stroke="#36c" stroke-width="2"/>
+        <line x1="160" y1="90" x2="192" y2="170" stroke="#36c" stroke-width="2"/>
+        <text x="130" y="235" font-size="11" fill="#666" text-anchor="middle">どちらからも閲覧できる</text>
+        <!-- after -->
+        <rect x="320" y="40" width="140" height="50" rx="6" fill="#fff" stroke="#999" stroke-dasharray="4 3"/>
+        <text x="390" y="62" font-size="12" fill="#666" text-anchor="middle">クラウド</text>
+        <text x="390" y="79" font-size="11" fill="#666" text-anchor="middle">暗号化バックアップのみ</text>
+        <rect x="280" y="160" width="105" height="55" rx="6" fill="#fff" stroke="#2a7" stroke-width="2"/>
+        <text x="332" y="183" font-size="12" fill="#2a7" text-anchor="middle">スマホアプリ</text>
+        <text x="332" y="201" font-size="11" fill="#2a7" text-anchor="middle">履歴の正本</text>
+        <rect x="405" y="170" width="95" height="40" rx="6" fill="#fff" stroke="#c44" stroke-dasharray="4 3"/>
+        <text x="452" y="195" font-size="12" fill="#c44" text-anchor="middle">Web ブラウザ</text>
+        <line x1="355" y1="90" x2="332" y2="160" stroke="#2a7" stroke-width="2" stroke-dasharray="4 3"/>
+        <text x="452" y="230" font-size="11" fill="#c44" text-anchor="middle">× 参照不可</text>
+        <text x="332" y="235" font-size="11" fill="#666" text-anchor="middle">端末ごとに独立</text>
+      </svg>
+      <p>その結果、タイムラインは<strong>端末ごとに独立</strong>したデータになり、複数のスマートフォンを持っていても自動では統合されません。
+      (「サーバーが復号できないから Web 表示できない」という因果の説明は、Google が公開している仕組みからの推論です。Google が Web 版廃止の技術的理由をこの言い方で説明した一次資料は未確認です。)</p>
+
+      <h2>経緯(時系列)</h2>
+      <table>
+        <thead><tr><th>時期</th><th>出来事</th></tr></thead>
+        <tbody>
+          <tr><td>2018〜2020 年</td><td>Google の透明性レポートによると、米国で受けたジオフェンス令状は 2018 年 982 件、2019 年 8,396 件、2020 年 11,554 件と急増。米国で受ける令状全体の 25% 超を占めるまでになった</td></tr>
+          <tr><td>2022 年 7 月</td><td>米最高裁の Roe v. Wade 判決見直しの直後、Google が中絶クリニックや DV シェルターなど「特に個人的な」医療施設への訪問を、ロケーション履歴から訪問直後に自動削除すると発表</td></tr>
+          <tr><td>2023 年 12 月</td><td>タイムラインの端末内保存、暗号化バックアップ、自動削除の既定値 3 か月への短縮を公式ブログで発表</td></tr>
+          <tr><td>2024 年 6 月頃</td><td>ユーザーへのメールで「2024 年 12 月 1 日までにアプリで移行しないと古いデータは削除され、Web 版のタイムラインは使えなくなる」と通知。移行しない場合、期限後に直近 90 日分だけを最初にサインインした端末へ移すとされた</td></tr>
+          <tr><td>2024 年 12 月〜2025 年</td><td>12 月 1 日の期限は一律には適用されず、通知メールを受け取ってから約 6 か月、という<strong>ユーザーごとの期限</strong>に変更(例: 2025 年 6 月 9 日)。Web 版は順次終了</td></tr>
+          <tr><td>2025 年 3 月</td><td>技術的な問題で一部ユーザーのタイムラインが消失。Google は、暗号化バックアップを有効にしていたユーザーはほぼ全員が復元できる一方、バックアップのないユーザーのデータは戻せないと認めた</td></tr>
+        </tbody>
+      </table>
+
+      <h2>公式説明以外に指摘されている背景</h2>
+      <p>以下は Google が公式に理由として挙げたものではなく、報道や法律専門家による分析です。区別して読んでください。</p>
+      <ul>
+        <li><strong>ジオフェンス令状への対応</strong>: ジオフェンス令状は「ある時間帯に特定の範囲にいた端末」の位置情報を Google に一括提出させる令状です。
+          その主な供給源は、サーバー上のロケーション履歴(報道では「Sensorvault」と呼ばれる)でした。
+          履歴が端末とエンドツーエンド暗号化バックアップにしかなければ、Google は提出したくても提出できません。
+          2023 年 12 月の発表直後から、Lawfare などの法律メディアや各種報道は「これで Google 向けのジオフェンス令状は事実上終わる」と分析しています。
+          Google 自身はブログで令状に触れておらず、動機として明言はしていません</li>
+        <li><strong>訴訟・規制リスク</strong>: 米国ではジオフェンス令状の合憲性をめぐって判断が割れていました。
+          連邦第 5 巡回区控訴裁判所は 2024 年の United States v. Smith で「本質的に違憲」と判断し、この問題は Chatrie v. United States として米連邦最高裁に持ち込まれています(2026 年 4 月 27 日に口頭弁論、同年 6 月 29 日に判決)。
+          こうした法的な不安定さも、「データを持たない」設計に移る動機になり得たと考えられています(判決の詳細は本記事では未確認)</li>
+        <li><strong>データ最小化の流れ</strong>: 2022 年の医療施設訪問の自動削除や、自動削除の既定値の短縮と同じく、「必要以上にサーバーに位置情報を溜めない」方向の施策の延長と見る向きもあります</li>
+      </ul>
+
+      <h2>ユーザー側への影響と注意点</h2>
+      <ul>
+        <li>パソコンのブラウザからは閲覧・編集できない。閲覧はスマートフォンの Google マップアプリ(プロフィールアイコン → 「タイムライン」)から行う</li>
+        <li>端末を紛失・初期化すると履歴を失う。機種変更に備え、アプリ内の<strong>暗号化バックアップを有効化</strong>しておく</li>
+        <li>複数端末の履歴は自動では統合されない</li>
+        <li>自動削除の既定値は 3 か月。長期間残したい場合は設定で期間を変更する</li>
+      </ul>
+
+      <h2>まとめ</h2>
+      <p>「モバイルアプリ限定」は、Web 版を単体で狙って廃止したというより、<strong>位置履歴を Google のサーバーに置かない設計への転換</strong>に伴う結果です。
+      Google の公式説明はユーザーによるデータ管理とプライバシーの強化です。一方で外部からは、ジオフェンス令状に応じられない状態をつくることが実質的な効果であり、背景でもあると分析されています。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://blog.google/products/maps/updates-to-location-history-and-new-controls-coming-soon-to-maps/" rel="noopener">Google Blog: Updates to Location History and new controls coming soon to Maps(2023-12, Marlo McGriff)</a></li>
+          <li><a href="https://blog.google/innovation-and-ai/technology/safety-security/protecting-peoples-privacy-on-health-topics/" rel="noopener">Google Blog: Protecting people's privacy on health topics(2022-07)</a></li>
+          <li><a href="https://services.google.com/fh/files/misc/supplemental_information_geofence_warrants_united_states.pdf" rel="noopener">Google: Supplemental Information on Geofence Warrants in the United States(透明性レポート補足資料)</a></li>
+          <li><a href="https://www.supremecourt.gov/opinions/25pdf/25-112_0am4.pdf" rel="noopener">Supreme Court of the United States: Chatrie v. United States, No. 25-112(2026-06-29)</a></li>
+          <li>補足(報道・分析。一次情報ではありません):
+            <a href="https://9to5google.com/2024/06/05/google-maps-timeline-web/" rel="noopener">9to5Google(Web 版終了の通知)</a>、
+            <a href="https://www.androidpolice.com/google-maps-timeline-shutdown/" rel="noopener">Android Police(ユーザーごとの期限)</a>、
+            <a href="https://9to5google.com/2025/03/21/google-maps-timeline-fix/" rel="noopener">9to5Google(2025 年 3 月のデータ消失)</a>、
+            <a href="https://www.lawfaremedia.org/article/how-google-s-location-history-program-could-upend-digital-surveillance-law" rel="noopener">Lawfare(ジオフェンス令状への影響分析)</a></li>
+        </ul>
+        <p>注: 本記事作成時、調査環境から Google Blog や Google ヘルプ等の本文を直接取得できなかったため、記述は検索結果に表示された公式ページの抜粋と複数の報道の照合に基づきます。</p>
+      </section>
+
+      <a class="back-link" href="../misc.html">← その他の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>

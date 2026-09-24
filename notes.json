@@ -1,5 +1,13 @@
 [
   {
+    "title": "Google マップのタイムラインはなぜモバイルアプリ限定になったのか",
+    "category": "misc",
+    "path": "misc/google-maps-timeline-on-device.html",
+    "date": "2026-09-24",
+    "summary": "タイムラインのデータ保存先が Google のサーバーから各スマートフォン本体に移されたためで、Google は「自分のデータをより細かく管理できるようにする」プライバシー強化策と説明しています。",
+    "tags": ["Google マップ", "タイムライン", "ロケーション履歴", "プライバシー", "暗号化バックアップ", "ジオフェンス令状", "オンデバイス"]
+  },
+  {
     "title": "Windows の Kiro Crew で Computer Use を使うとき、Node などの追加インストールは必要か",
     "category": "misc",
     "path": "misc/kiro-crew-windows-computer-use-prerequisites.html",
