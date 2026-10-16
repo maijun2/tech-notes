@@ -1,5 +1,13 @@
 [
   {
+    "title": "Babelfish for Aurora PostgreSQL の T-SQL 互換性はどう担保されるのか",
+    "category": "aws",
+    "path": "aws/babelfish-tsql-compatibility.html",
+    "date": "2026-10-16",
+    "summary": "Babelfish は SQL Server の実装を移植したものではありません。Aurora PostgreSQL に「T-SQL 方言のレイヤ」を足すことで互換性を作っています。",
+    "tags": ["Babelfish", "Aurora PostgreSQL", "T-SQL", "SQL Server", "TDS", "escape hatch", "Babelfish Compass", "collation", "migration mode"]
+  },
+  {
     "title": "Google マップのタイムラインはなぜモバイルアプリ限定になったのか",
     "category": "misc",
     "path": "misc/google-maps-timeline-on-device.html",

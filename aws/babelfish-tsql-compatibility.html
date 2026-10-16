@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Babelfish for Aurora PostgreSQL の T-SQL 互換性はどう担保されるのか | maijun の技術質問ノート</title>
+  <meta name="description" content="SQL Server の実装を移植しているわけではなく、TDS ワイヤプロトコル・T-SQL 方言・エラーコードマッピングの 3 層を Aurora PostgreSQL に足すことで互換性を作っています。担保される範囲は Babelfish のバージョンごとにドキュメント化されており、残りは Babelfish Compass による事前アセスメントと escape hatch で埋めます。">
+  <link rel="stylesheet" href="../styles/site.css">
+  <!-- OGP / Twitter Card -->
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="maijun の技術質問ノート">
+  <meta property="og:title" content="Babelfish for Aurora PostgreSQL の T-SQL 互換性はどう担保されるのか">
+  <meta property="og:description" content="SQL Server の実装を移植しているわけではなく、TDS ワイヤプロトコル・T-SQL 方言・エラーコードマッピングの 3 層を Aurora PostgreSQL に足すことで互換性を作っています。担保される範囲は Babelfish のバージョンごとにドキュメント化されており、残りは Babelfish Compass による事前アセスメントと escape hatch で埋めます。">
+  <link rel="canonical" href="https://notes.maijun.net/aws/babelfish-tsql-compatibility">
+  <meta property="og:url" content="https://notes.maijun.net/aws/babelfish-tsql-compatibility">
+  <meta property="og:image" content="https://notes.maijun.net/og?title=Babelfish%20for%20Aurora%20PostgreSQL%20%E3%81%AE%20T-SQL%20%E4%BA%92%E6%8F%9B%E6%80%A7%E3%81%AF%E3%81%A9%E3%81%86%E6%8B%85%E4%BF%9D%E3%81%95%E3%82%8C%E3%82%8B%E3%81%AE%E3%81%8B">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site-header">
+    <a class="site-title" href="../index.html">maijun の技術質問ノート</a>
+    <nav><a href="../search.html">検索</a></nav>
+  </header>
+
+  <main data-pagefind-body>
+    <article class="note">
+      <p class="meta">
+        <span class="cat-mark" style="background: var(--cat-aws)">AWS</span>
+        <time data-pagefind-meta="date" datetime="2026-10-16">2026-10-16</time>
+      </p>
+      <h1>Babelfish for Aurora PostgreSQL の T-SQL 互換性はどう担保されるのか</h1>
+
+      <div class="lead">
+        <p>Babelfish は SQL Server の実装を移植したものではありません。Aurora PostgreSQL に「T-SQL 方言のレイヤ」を足すことで互換性を作っています。具体的には ① SQL Server の TDS ワイヤプロトコルを話す追加 endpoint (port 1433)、② T-SQL の方言・データ型・<code>sys.*</code> カタログビュー・stored procedure・cursor・trigger を再実装した言語レイヤ、③ PostgreSQL のエラーを SQL Server 相当の error code に写し替えるマッピング層、という 3 層構造です。</p>
+        <p>そして重要なのは、互換性が「100% 保証」されるものではない点です。AWS が担保しているのは「その Babelfish バージョンがサポートすると明記した範囲」であり、それはバージョンごとの対応表・差異表・非サポート一覧としてドキュメント化されています。残りの差分は、移行前の Babelfish Compass によるアセスメントと、未サポート構文を受け流す escape hatch、そして PostgreSQL 側の構文への書き換えで埋める運用になります。</p>
+      </div>
+
+      <h2>互換性を作っている 3 つのレイヤ</h2>
+
+      <p>AWS のドキュメントは Babelfish を「TDS ポート経由で T-SQL 方言を使い、PostgreSQL の上に T-SQL のセマンティクスを提供するよう設計されたもの」と説明しています。レイヤごとに何を担保しているのかを分けて見ると、どこまで信用できるかが判断しやすくなります。</p>
+
+      <svg viewBox="0 0 720 360" role="img" aria-label="Babelfish が T-SQL 互換性を提供する 3 層構造。SQL Server クライアントが TDS port 1433 に接続し、T-SQL 方言レイヤとエラーマッピング層を経て、単一の babelfish_db データベースにアクセスする図" style="max-width:100%; height:auto;">
+        <defs>
+          <marker id="arrowB" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#555"/>
+          </marker>
+        </defs>
+
+        <rect x="20" y="16" width="200" height="52" rx="8" fill="#eef3f8" stroke="#4a7ba7"/>
+        <text x="36" y="38" font-size="12.5" font-weight="bold" fill="#22405c">SQL Server クライアント</text>
+        <text x="36" y="56" font-size="11.5" fill="#333">sqlcmd / SSMS / .NET / JDBC</text>
+
+        <rect x="460" y="16" width="200" height="52" rx="8" fill="#eef8f1" stroke="#3f8a5c"/>
+        <text x="476" y="38" font-size="12.5" font-weight="bold" fill="#1d4a31">PostgreSQL クライアント</text>
+        <text x="476" y="56" font-size="11.5" fill="#333">psql / libpq ドライバ</text>
+
+        <line x1="120" y1="68" x2="120" y2="104" stroke="#555" marker-end="url(#arrowB)"/>
+        <line x1="560" y1="68" x2="560" y2="260" stroke="#555" marker-end="url(#arrowB)"/>
+
+        <rect x="20" y="104" width="200" height="40" rx="6" fill="#fdf3f3" stroke="#b05a5a"/>
+        <text x="36" y="129" font-size="12" font-weight="bold" fill="#7a2f2f">① TDS listener : 1433</text>
+
+        <text x="236" y="129" font-size="11" fill="#555">TDS 7.1〜7.4 / ドライバ変更なし</text>
+
+        <rect x="20" y="160" width="400" height="56" rx="6" fill="#f8f2ea" stroke="#b08040"/>
+        <text x="36" y="182" font-size="12" font-weight="bold" fill="#6b4a15">② T-SQL 方言レイヤ</text>
+        <text x="36" y="200" font-size="11.5" fill="#333">データ型 / sys.* カタログビュー / cursor / trigger / procedure</text>
+
+        <rect x="20" y="232" width="400" height="56" rx="6" fill="#f3f0f8" stroke="#6a5aa0"/>
+        <text x="36" y="254" font-size="12" font-weight="bold" fill="#3b2f6b">③ エラー・セマンティクス層</text>
+        <text x="36" y="272" font-size="11.5" fill="#333">SQL Server error code へのマッピング / escape hatch</text>
+
+        <line x1="120" y1="144" x2="120" y2="160" stroke="#555" marker-end="url(#arrowB)"/>
+        <line x1="120" y1="216" x2="120" y2="232" stroke="#555" marker-end="url(#arrowB)"/>
+        <line x1="120" y1="288" x2="120" y2="304" stroke="#555" marker-end="url(#arrowB)"/>
+
+        <rect x="20" y="304" width="640" height="44" rx="8" fill="#eef8f1" stroke="#3f8a5c"/>
+        <text x="36" y="332" font-size="12.5" font-weight="bold" fill="#1d4a31">Aurora PostgreSQL の単一データベース babelfish_db (PostgreSQL port : 5432)</text>
+
+        <text x="572" y="252" font-size="11" fill="#555" text-anchor="middle">方言レイヤを</text>
+        <text x="572" y="268" font-size="11" fill="#555" text-anchor="middle">通らない経路</text>
+      </svg>
+
+      <h3>① ワイヤプロトコル層 — ドライバを替えずに繋がる</h3>
+      <p>Babelfish は Aurora PostgreSQL クラスタに追加の endpoint を提供し、SQL Server のワイヤレベルプロトコル (TDS: Tabular Data Stream) を解釈します。サポート対象は TDS 7.1〜7.4 で、クライアントはデフォルトで port 1433 に接続します。PostgreSQL 方言 (PL/pgSQL) 側は従来どおり port 5432 です。つまりアプリ側の接続文字列とドライバはそのままで、接続先だけを差し替えられます。これが「few code changes で動く」と言われる根拠の一番下の層です。</p>
+      <p>ただしプロトコル層にも例外があります。MSDTC (Microsoft Distributed Transaction Coordinator) に関連する接続属性を使う API リクエストは未サポートで、SQL Server JDBC ドライバの <code>SQLServerXAResource</code> による XA 呼び出しも含まれます。また、Microsoft JDBC ドライバの代替である OSS の jTDS ドライバはサポート対象外です。</p>
+
+      <h3>② 言語・オブジェクト層 — T-SQL の「見た目」を再現する</h3>
+      <p>Babelfish を有効にしてクラスタを作成すると、Aurora は <code>babelfish_db</code> という名前の PostgreSQL データベースをプロビジョニングします。移行された SQL Server のオブジェクトと構造はすべてこの中に入ります。TDS ポートに接続したセッションは自動的に <code>babelfish_db</code> に置かれ、T-SQL から見ると SQL Server インスタンスに繋いだのと同じ構造、つまり <code>master</code> / <code>msdb</code> / <code>tempdb</code> と <code>sys.databases</code> カタログが見えます。ユーザーデータベースを追加して <code>USE</code> で切り替えることもできます。SQL Server のユーザーデータベースは <code>babelfish_db</code> の中に flatten されますが、クロスデータベースの構文とセマンティクスは SQL Server と同等か近いものが維持されます。</p>
+      <p>互換性の対象になる要素は、SQL 方言そのものに加えて cursor、カタログビュー、データ型、trigger、stored procedure、function にまで及びます。だからこそ、既存の T-SQL をほぼそのまま動かせます。</p>
+      <p><code>babelfish_db</code> という名前は Babelfish 用に予約されています。自分で同名のデータベースを作ると、Aurora が Babelfish を正常にプロビジョニングできなくなるので注意してください。</p>
+
+      <h3>③ エラー・セマンティクス層 — 失敗の仕方まで寄せる</h3>
+      <p>互換性は「成功するクエリ」だけの話ではありません。アプリケーションはエラーコードで分岐するので、失敗の仕方も揃っている必要があります。Babelfish は制御フローとトランザクション状態について可能な限り SQL Server の振る舞いを再現し、エラー時には SQL Server のエラーコードに近いコードを返します。マッピングできない場合は固定の <code>33557097</code> を返し、エラー種別ごとに次の動作をとります。</p>
+      <ul>
+        <li>コンパイル時エラー: トランザクションをロールバックする</li>
+        <li>実行時エラー: バッチを終了し、トランザクションをロールバックする</li>
+        <li>クライアントとサーバー間のプロトコルエラー: トランザクションはロールバックしない</li>
+      </ul>
+      <p>同等のコードがない場合は、似たエラーのコードへ寄せられます。たとえば SQL Server のコード <code>8143</code> と <code>8144</code> を引き起こす振る舞いは、どちらも <code>8143</code> にマップされます。ここは実務上とても重要な落とし穴があり、<strong>マップできないエラーは <code>TRY...CATCH</code> を尊重しません</strong>。SQL Server 側で <code>TRY...CATCH</code> に頼ってリトライしている処理は、個別に挙動を確認してください。</p>
+      <p>調査には次の関数が使えます。</p>
+
+<pre><code>-- SQL Server 互換のエラーコード
+SELECT @@ERROR;
+
+-- 元の PostgreSQL エラーコード
+SELECT @@PGERROR;
+
+-- マッピング済みエラーコードの一覧
+SELECT * FROM fn_mapped_system_error_list();
+GO</code></pre>
+
+      <h2>「どこまで担保されるか」はバージョンで決まる</h2>
+      <p>Babelfish は Aurora PostgreSQL 13.4 で最初に提供され、それ以降リリースごとに機能が追加されている進化中の機能です。AWS 自身が「最新バージョンにおける SQL Server の T-SQL と Babelfish の T-SQL の差異を理解しておくことを推奨する」と明記しており、互換性の担保は固定の仕様ではなく「バージョンごとのサポート表」として提供されています。参照すべきドキュメントは 3 つに分かれています。</p>
+      <ul>
+        <li><strong>Supported functionalities in Babelfish by version</strong>: T-SQL 構文・関数・<code>SERVERPROPERTY</code> のプロパティなどが、どのバージョンから Yes になったかのマトリクス</li>
+        <li><strong>T-SQL differences in Babelfish</strong>: 動くけれども SQL Server と挙動が違うもの</li>
+        <li><strong>Unsupported functionalities in Babelfish</strong>: そもそも動かないもの</li>
+      </ul>
+      <p>したがって最初にやるべきことは、自分のクラスタの Babelfish バージョンを確定させることです。</p>
+
+<pre><code>-- TDS ポート (1433) に接続して確認
+SELECT CAST(SERVERPROPERTY('babelfishversion') AS VARCHAR);
+GO
+-- 例: 3.4.0
+
+SELECT aurora_version() AS aurora_version;
+GO
+-- 例: 15.5.0
+
+SELECT @@VERSION AS version;
+GO
+-- 例: Babelfish for Aurora PostgreSQL with SQL Server Compatibility - 12.0.2000.8
+
+-- Babelfish 上かどうかの判定(Babelfish は 1、SQL Server は NULL を返す)
+SELECT SERVERPROPERTY('Babelfish');
+GO</code></pre>
+
+      <p>リージョンで Babelfish が使える Aurora PostgreSQL バージョンは、AWS CLI でも引けます。</p>
+
+<pre><code>aws rds describe-db-engine-versions --region ap-northeast-1 \
+  --engine aurora-postgresql \
+  --query '*[]|[?SupportsBabelfish==`true`].[EngineVersion]' \
+  --output text</code></pre>
+
+      <p>なお、クライアントツールやドライバが SQL Server のバージョン番号で機能を判定してくる場合に備えて、返す製品バージョンを DB クラスタパラメータ <code>babelfishpg_tds.product_version</code> で変更できます。これは <code>@@VERSION</code>、<code>SERVERPROPERTY('ProductVersion')</code>、PRELOGIN レスポンスの VERSION トークン、JDBC の <code>DatabaseMetaData.getDatabaseProductVersion()</code> が返す値に効きます(前 2 つは即時、後 2 つは新規セッションから)。</p>
+
+<pre><code>aws rds modify-db-cluster-parameter-group \
+  --db-cluster-parameter-group-name mydbparametergroup \
+  --parameters "ParameterName=babelfishpg_tds.product_version,ParameterValue=15.2.4000.1,ApplyMethod=immediate"</code></pre>
+
+      <h2>比較のセマンティクスは collation で担保される</h2>
+      <p>T-SQL 互換性で見落としやすいのが文字列比較です。SQL Server は既定で大文字小文字を区別しない比較をしますが、PostgreSQL は区別します。ここは collation パラメータで埋められています。</p>
+      <ul>
+        <li><code>babelfishpg_tsql.server_collation_name</code>: サーバーとデータベースの既定 collation。デフォルトは <code>sql_latin1_general_cp1_ci_as</code>。<strong>T-SQL ではサーバー collation が識別子の比較方法を決めるため、この値は <code>CI_AS</code> (大文字小文字を区別しない・アクセントを区別する) でなければなりません</strong>。Babelfish データベース作成後に変更してはいけません</li>
+        <li><code>babelfishpg_tsql.default_locale</code>: collation が使う既定ロケール。デフォルトは <code>en-US</code>。既存クラスタでこの値を変えても、既存 collation のロケールには影響しません</li>
+      </ul>
+      <p>これらはクラスタ作成時に選んだ値が DB クラスタパラメータグループに保存されます。使える collation の一覧は T-SQL から確認できます。</p>
+
+<pre><code>SELECT * FROM fn_helpcollations();
+GO</code></pre>
+
+      <h2>未サポート構文の受け流し: escape hatch</h2>
+      <p>既存の T-SQL には、Babelfish に実装がない構文が混ざるのが普通です。そこで Babelfish は <em>escape hatch</em> という仕組みを持っています。これは「未サポートの機能や構文に遭遇したときの振る舞い」を指定するオプションで、<code>ignore</code> (受理して無視) か <code>strict</code> (エラーを返す) を選べます。設定は <code>sp_babelfish_configure</code> で行います。</p>
+
+<pre><code>-- 全 escape hatch と現在値・使い方を一覧
+EXECUTE sp_babelfish_configure;
+GO
+
+-- 名前で絞って確認(ワイルドカード可)
+EXECUTE sp_babelfish_configure 'escape_hatch_query_hints';
+GO
+
+-- クラスタ全体に恒久的に設定する場合は 'server' を付ける
+EXECUTE sp_babelfish_configure 'escape_hatch_unique_constraint', 'ignore', 'server';
+GO
+
+-- 既定値に戻す(Babelfish 1.2.0 以降)
+EXECUTE sp_babelfish_configure 'default';
+GO</code></pre>
+
+      <p>既定値は項目ごとに異なります。代表的なものを挙げます。</p>
+      <ul>
+        <li><code>escape_hatch_index_clustering</code> (既定 <code>ignore</code>): <code>CLUSTERED</code> / <code>NONCLUSTERED</code> キーワードを制御します。<code>CLUSTERED</code> が無視された場合、インデックスや制約は <code>NONCLUSTERED</code> 指定だったものとして作成されます</li>
+        <li><code>escape_hatch_query_hints</code> (既定 <code>ignore</code>): <code>OPTION (...)</code> 句のクエリヒントを無視します</li>
+        <li><code>escape_hatch_table_hints</code> (既定 <code>ignore</code>) / <code>escape_hatch_join_hints</code> (既定 <code>ignore</code>): <code>WITH (...)</code> のテーブルヒント、JOIN の <code>LOOP</code> / <code>HASH</code> / <code>MERGE</code> などを無視します</li>
+        <li><code>escape_hatch_storage_options</code> (既定 <code>ignore</code>): <code>ON [PRIMARY]</code>、<code>TEXTIMAGE_ON</code>、<code>FILESTREAM_ON</code> といったストレージ指定句を無視します</li>
+        <li><code>escape_hatch_rowversion</code> (既定 <code>strict</code>) / <code>escape_hatch_storage_on_partition</code> (既定 <code>strict</code>): それぞれ <code>ROWVERSION</code> / <code>TIMESTAMP</code> データ型、<code>ON partition_scheme (column)</code> によるパーティション指定を制御します。Babelfish はパーティショニングを現時点で実装していません</li>
+        <li><code>escape_hatch_index_columnstore</code> (既定 <code>strict</code>): <code>ignore</code> を指定すると、columnstore ではなく通常の B-tree インデックスが作られます</li>
+      </ul>
+      <p>ここで必ず意識しておきたいのは、<strong><code>ignore</code> は「意味を実現した」のではなく「構文を受理して捨てた」だけである</strong>という点です。<code>CLUSTERED</code> が <code>NONCLUSTERED</code> になり、クエリヒントは効かず、ファイルグループ指定は消えます。DDL はエラーなく通るので移行作業は進みますが、物理設計とプラン制御の意図はそこで落ちています。性能面は escape hatch とは別に、移行後に実測で確認するという前提を置いてください。</p>
+
+      <h2>担保されない部分 — 代表的な非サポートと挙動差</h2>
+      <p>「どう担保されるか」の裏側として、担保されないものを把握しておく方が実務では重要です。公式の非サポート一覧から、移行判断に効きやすいものを抜き出します。</p>
+
+      <h3>機能として動かないもの</h3>
+      <ul>
+        <li>Assembly モジュールと SQL CLR ルーチン(外部定義の function / procedure / trigger を含む)</li>
+        <li>DBCC コマンド(Babelfish 3.4.0 以降の <code>DBCC CHECKIDENT</code> は例外としてサポート)</li>
+        <li>Temporal tables、Materialized views、Row-level security (<code>CREATE SECURITY POLICY</code>)、Service Broker、SQL graph 機能</li>
+        <li>グローバル一時テーブル(<code>##</code> で始まる名前)</li>
+        <li>更新可能カーソル、<code>GLOBAL</code> カーソル、<code>FETCH PRIOR</code> / <code>FIRST</code> / <code>LAST</code> / <code>ABSOLUTE</code> / <code>RELATIVE</code>、<code>SCROLL</code> / <code>KEYSET</code> / <code>DYNAMIC</code> / <code>FAST_FORWARD</code> などのカーソルオプション</li>
+        <li><code>EXECUTE AS</code> 文、function / procedure / trigger 内の <code>EXECUTE AS SELF</code> / <code>EXECUTE AS USER</code> 句</li>
+        <li>複数データベースにまたがるオブジェクトを操作するクロスデータベース DDL</li>
+        <li><code>xp_cmdshell</code> などの拡張ストアドプロシージャ、<code>SP_CONFIGURE</code></li>
+        <li><code>BACKUP</code> / <code>RESTORE DATABASE</code>、DAC パッケージ (.dacpac / .bacpac) の import / export、可用性グループ関連の DDL</li>
+        <li>名前に <code>@</code> や角かっこを含むテーブル名・列名、インラインインデックス、変数に入れた名前でのプロシージャ呼び出し、パラメータ 100 個超の宣言</li>
+      </ul>
+
+      <h3>動くが挙動が違うもの</h3>
+      <ul>
+        <li><code>@@version</code> が返す値の書式が SQL Server と少し違います。書式に依存したコードは壊れます</li>
+        <li><code>ALTER TABLE</code> は 1 列または 1 制約の追加・削除のみサポートします</li>
+        <li><code>ALTER TABLE..ALTER COLUMN</code> では <code>NULL</code> / <code>NOT NULL</code> を指定できません。null 許容性を変えるには PostgreSQL の <code>ALTER TABLE..{SET|DROP} NOT NULL</code> を使います</li>
+        <li>集計関数は部分サポートです(<code>AVG</code>、<code>COUNT</code>、<code>COUNT_BIG</code>、<code>GROUPING</code>、<code>MAX</code>、<code>MIN</code>、<code>STRING_AGG</code>、<code>SUM</code> がサポート対象)</li>
+        <li>文字列・16 進文字列の行継続文字(改行直前のバックスラッシュ)は未サポートです。文字列では文字として解釈され、16 進文字列では構文エラーになります</li>
+        <li>リモートオブジェクト参照は読み取り限定です。linked server に対するストアドプロシージャの実行はサポートされず、4 部構成のオブジェクト名は読み取りでのみ動作し、リモートテーブルの更新はできません</li>
+      </ul>
+
+      <h3>Aurora 側の機能制限</h3>
+      <p>T-SQL とは別に、Babelfish を有効にすると使えなくなる Aurora 機能があります。設計段階で効いてくるので無視できません。</p>
+      <ul>
+        <li>IAM データベース認証、Database Activity Streams (DAS)、RDS Data API、<strong>RDS Proxy</strong>、SCRAM、Query editor、Zero-ETL 統合、Iceberg / Parquet データのクエリ</li>
+        <li>未サポートの PostgreSQL 拡張: <code>pgcrypto</code>、<code>hstore</code>、<code>ltree</code>、<code>citext</code>、<code>cube</code>、<code>bloom</code>、<code>btree_gin</code>、<code>btree_gist</code>、<code>hypopg</code>、<code>pglogical</code> による論理レプリケーション、<code>apg_plan_mgmt</code> によるクエリプラン管理</li>
+      </ul>
+
+      <h2>実務での担保手順: Babelfish Compass による事前アセスメント</h2>
+      <p>ここまでの内容は裏を返すと「自分のコードがサポート範囲に入っているかは、自分で測るしかない」という話になります。AWS の移行手順でも、DDL を出してアセスメントツールを走らせる工程が明示的に組まれています。</p>
+
+      <p>手順の骨格は次のとおりです。</p>
+      <ol>
+        <li>移行元 SQL Server から DDL を出力する。SSMS の Generate Script Wizard で「Script entire database and all database objects」を選び、単一スクリプトファイルとして保存します。Advanced では既定で false になっている項目を true に変えておくと漏れが減ります(Script Change Tracking / Full-Text Indexes / Triggers / Logins / Owner / Object-Level Permissions / Collations)</li>
+        <li>その DDL を <strong>Babelfish Compass</strong> にかけ、T-SQL のどこまでが現行 Babelfish でサポートされるかを判定する</li>
+        <li>Babelfish を有効にした Aurora PostgreSQL クラスタを作成する</li>
+        <li>DDL を適用し(まずはスキーマ・ユーザー定義型・主キー付きテーブルのみ)、AWS DMS でデータを移行する</li>
+        <li>アプリケーションを TDS endpoint に向けて回帰テストする</li>
+      </ol>
+
+<pre><code># Babelfish Compass の実行例(Windows)
+C:\BabelfishCompass&gt; BabelfishCompass.bat YourFirstReportName test\school-sample-db.sql</code></pre>
+
+      <p>Compass の判定は、インストールディレクトリにある <code>BabelfishFeatures.cfg</code> が元データです。このファイルは Babelfish のリリースごとに更新されるため、<strong>アセスメントは「どの Babelfish バージョンに対しての判定か」とセットでしか意味を持ちません</strong>。レポートでは検出項目が Not Supported / Review Semantics / Review Performance / Review Manually / Ignored に分類され、解消にかかる手間の目安として complexity score (LOW / MEDIUM / HIGH) が付きます。これが移行プロジェクトの go / no-go 判断材料になります。</p>
+      <p>なお Babelfish Compass は Babelfish 製品の一部ではありますが、技術的には Babelfish 本体およびそのコードから分離されたスタンドアロンかつオープンソースのツールで、別の GitHub リポジトリに置かれています。問題を見つけた場合は AWS Support ではなく GitHub に報告するよう案内されています。</p>
+
+      <h2>PostgreSQL 側と併用するときの注意</h2>
+      <p><code>babelfish_db</code> は PostgreSQL の標準ポートからも PostgreSQL の SQL 文でアクセスできます。段階的に PostgreSQL ネイティブへ移行していく上では便利ですが、本番で両方を同じアプリケーションコンテキストから使う場合、AWS は相互運用性の問題を事前に検討するよう強く推奨しています。干渉しうるポイントとして挙げられているのは、スキーマ名、識別子、権限、トランザクションセマンティクス、複数結果セット、既定 collation などです。Babelfish の新バージョンがリリースされた際に、構文・セマンティクス・互換性へ影響が出る可能性もあると明記されています。</p>
+      <p>スキーマ名については migration mode の選択が直接効いてきます。</p>
+      <ul>
+        <li><strong>single-db モード</strong>: SQL Server のスキーマ名が <code>babelfish_db</code> の中でもそのまま維持されます。PostgreSQL からも SQL Server と同じ名前で参照できるため、将来 PostgreSQL ネイティブへ完全移行する前提ならこちらが有利です</li>
+        <li><strong>multi-db モード</strong>: PostgreSQL から見たユーザーデータベースのスキーマ名が <code>dbname_schemaname</code> になります(例: <code>dba</code> の <code>dbo</code> と <code>dev</code> は <code>dba_dbo</code> / <code>dba_dev</code>)。T-SQL から見た名前は変わりません。同一インスタンスに複数ユーザーデータベースを持つ SQL Server 的な使い方をしたい場合はこちらです</li>
+      </ul>
+      <p>この migration mode は <code>migration_mode</code> パラメータに保存されます。<strong>クラスタ作成後に変更してはいけません</strong>。変更すると、それまでに作成した SQL オブジェクトすべてへのアクセスを失う可能性があります。</p>
+      <p>もう一点、SQL Server と違い Babelfish はクラスタ再起動後に <code>tempdb</code> を再初期化しません。システムデータベース (<code>master</code> / <code>tempdb</code>) 内にオブジェクトを作成・変更していた場合は、新クラスタ側で作り直す必要があります。</p>
+
+      <h2>まとめ: 「担保」の正体</h2>
+      <p>Babelfish の T-SQL 互換性は、次の 4 点の組み合わせで成立しています。</p>
+      <ol>
+        <li><strong>プロトコルとオブジェクトモデルの再実装</strong>: TDS endpoint、T-SQL 方言、<code>sys.*</code> カタログ、SQL Server 互換のデータ型・procedure・cursor・trigger</li>
+        <li><strong>失敗の互換</strong>: SQL Server error code へのマッピングと、マップできない場合の固定コード <code>33557097</code></li>
+        <li><strong>サポート範囲のドキュメント化</strong>: バージョン別対応表・差異表・非サポート一覧として明示される</li>
+        <li><strong>差分を埋める運用</strong>: Babelfish Compass による事前アセスメント、escape hatch による構文の受理、PostgreSQL 構文への部分的な書き換え</li>
+      </ol>
+      <p>したがって「Babelfish を使えば T-SQL が全部そのまま動く」という読み方は誤りです。正しくは「ドキュメント化されたサポート範囲については互換的に動き、範囲外は事前に検出して個別に対処する」仕組みが担保されている、という整理になります。移行判断の実務では、まず自分のクラスタの Babelfish バージョンを固定し、そのバージョンの対応表に対して Compass をかける、という順序を崩さないことが肝心です。</p>
+
+      <section class="refs">
+        <h2>参照(一次情報)</h2>
+        <ul>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish.html" rel="noopener">Using Babelfish for Aurora PostgreSQL - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-architecture.html" rel="noopener">Babelfish architecture - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-compatibility.html" rel="noopener">Differences between Babelfish for Aurora PostgreSQL and SQL Server - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-compatibility.tsql.limitations.html" rel="noopener">T-SQL differences in Babelfish - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-compatibility.tsql.limitations-unsupported.html" rel="noopener">Unsupported functionalities in Babelfish - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-compatibility.supported-functionality-table.html" rel="noopener">Supported functionalities in Babelfish by version - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-strict.html" rel="noopener">Managing Babelfish error handling with escape hatches - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-collations.html" rel="noopener">Understanding Collations in Babelfish for Aurora PostgreSQL - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-limitations.html" rel="noopener">Babelfish limitations - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-migration.html" rel="noopener">Migrating a SQL Server database to Babelfish for Aurora PostgreSQL - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-information.html" rel="noopener">Managing Babelfish for Aurora PostgreSQL version updates - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-information-identify-version.html" rel="noopener">Identifying your version of Babelfish - Amazon Aurora User Guide</a></li>
+          <li><a href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/babelfish-guc-version.html" rel="noopener">Using Babelfish product version parameter - Amazon Aurora User Guide</a></li>
+          <li><a href="https://github.com/babelfish-for-postgresql/babelfish_compass" rel="noopener">babelfish-for-postgresql/babelfish_compass - GitHub</a></li>
+          <li><a href="https://babelfishpg.org/docs/usage/interoperability/" rel="noopener">Interoperability - Babelfish for PostgreSQL</a></li>
+        </ul>
+      </section>
+
+      <a class="back-link" href="../aws.html">← AWS の一覧へ</a> ・ <a class="back-link" href="../index.html">トップへ</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>© maijun — <a href="https://maijun.net">maijun.net</a> / このノートは Claude Code で生成・運用しています。</p>
+  </footer>
+</body>
+</html>
